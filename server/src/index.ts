@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { runInSandbox } from './dockerRunner';
 import { judgeByRegex, type RegexJudge, type ExecResult, type FS as JudgeFS } from './judge';
+import { pathToFileURL } from 'url';
 
 const fastify = Fastify();
 
@@ -24,7 +25,7 @@ io.on('connection', (socket) => {
       const { roomId, problemId, command } = payload as { roomId: string; problemId: string; command: string };
       const repoRoot = path.resolve(__dirname, '..', '..');
 
-      // 1) 問題JSONを解決
+      // 1) 問題JSONを id で解決
       const problemsDir = path.join(repoRoot, 'problems');
       const entries = await fs.readdir(problemsDir);
       let problemPath: string | null = null;
@@ -38,13 +39,13 @@ io.on('connection', (socket) => {
         } catch {}
       }
       if (!problemPath) {
-        socket.to(roomId).emit('verdict', { problemId, ok: false, reason: 'problem_not_found' });
-        socket.emit('verdict', { problemId, ok: false, reason: 'problem_not_found' });
+        const out = { problemId, ok: false, reason: 'problem_not_found' };
+        socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
         return;
       }
       const problem = JSON.parse(await fs.readFile(problemPath, 'utf8'));
 
-      // 2) Regex Judge（穴埋めで使用）
+      // 2) Regex Judge（穴埋め問題向け）
       const regexCfg = problem?.validators?.regex as { allow?: string[]; deny?: string[] } | null | undefined;
       if (regexCfg) {
         const policy: RegexJudge = {
@@ -53,21 +54,21 @@ io.on('connection', (socket) => {
         };
         const r = judgeByRegex(command, policy);
         if (!r.pass) {
-          const res = { problemId, ok: false, reason: `regex_${r.reason ?? 'fail'}` };
-          socket.emit('verdict', res); socket.to(roomId).emit('verdict', res);
+          const out = { problemId, ok: false, reason: `regex_${r.reason ?? 'fail'}` };
+          socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
           return;
         }
       }
 
       // 3) シナリオディレクトリ解決
       let scenarioDir: string | undefined;
-      const files = problem?.prepare?.files as string | null | undefined; // e.g. "scenarios/basic-01"
+      const files = problem?.prepare?.files as string | null | undefined; // 例: "scenarios/basic-01"
       if (files) scenarioDir = path.join(repoRoot, files);
 
-      // 4) 実行（Docker）
+      // 4) Dockerで実行
       const run = await runInSandbox({ image: problem?.prepare?.image || 'ubuntu:22.04', cmd: command, scenarioDir });
 
-      // 5) Effect Validator（MVP: stdout中心のものを優先）
+      // 5) Effect Validator（MVP: /scenarioのみ参照可能）
       const effScript = problem?.validators?.effect?.script as string | undefined;
       let ok = true; let reason: string | undefined;
       if (effScript) {
@@ -75,14 +76,13 @@ io.on('connection', (socket) => {
           const effPath = path.join(repoRoot, effScript);
           const mod = await import(pathToFileURL(effPath).href);
           const validator = (mod.default || mod.validate || mod) as (ctx: { fs: JudgeFS; exec: ExecResult }) => Promise<{ pass: boolean; reason?: string }>;
-          // MVP FS: /scenario はホストの scenarioDir を参照。/work は未対応（stdoutベース問題を優先）。
           const judgeFs: JudgeFS = {
             readFile: async (p: string) => {
               if (scenarioDir && p.startsWith('/scenario')) {
                 const rel = p.slice('/scenario'.length);
                 return fs.readFile(path.join(scenarioDir, rel), 'utf8');
               }
-              throw new Error('FS readFile for this path is not supported in MVP: ' + p);
+              throw new Error('FS readFile not supported for path: ' + p);
             },
             exists: async (p: string) => {
               if (scenarioDir && p.startsWith('/scenario')) {
@@ -95,7 +95,7 @@ io.on('connection', (socket) => {
           };
           const verdict = await validator({ fs: judgeFs, exec: { stdout: run.stdout, stderr: run.stderr, exitCode: run.exitCode } });
           ok = !!verdict.pass; reason = verdict.reason;
-        } catch (e: any) {
+        } catch {
           ok = false; reason = 'validator_error';
         }
       } else {
@@ -104,8 +104,7 @@ io.on('connection', (socket) => {
 
       const out = { problemId, ok, reason, stdout: run.stdout, stderr: run.stderr, exitCode: run.exitCode };
       socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
-    } catch (e) {
-      // 例外時も安全に応答
+    } catch {
       try {
         const { roomId, problemId } = (payload || {}) as any;
         const out = { problemId, ok: false, reason: 'internal_error' };
