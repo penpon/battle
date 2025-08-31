@@ -1,0 +1,16 @@
+{
+  "id": "basic-03",
+  "difficulty": "Basic",
+  "type": "hole",
+  "timeLimitSec": 90,
+  "prepare": { "image": "ubuntu:22.04", "files": "scenarios/basic-03" },
+  "statement": "/scenario/app.log に含まれる ERROR 行の件数のみを表示してください。",
+  "validators": {
+    "effect": { "script": "validators/basic-03.js" },
+    "regex": { "allow": [
+      "^\\s*grep\\s+-c\\s+ERROR\\s+/scenario/app\\.log\\s*$",
+      "^\\s*grep\\s+ERROR\\s+/scenario/app\\.log\\s*\u007c\\s*wc\\s*-l\\s*$"
+    ], "deny": [] }
+  },
+  "allowlistBins": ["bash","sh","grep","wc","cat","echo","pwd","ls"]
+}

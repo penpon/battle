@@ -1,0 +1,10 @@
+{
+  "id": "starter-04",
+  "difficulty": "Starter",
+  "type": "hole",
+  "timeLimitSec": 90,
+  "prepare": { "image": "ubuntu:22.04", "files": null },
+  "statement": "文字列 Linux を表示してください。",
+  "validators": { "regex": { "allow": ["^\\s*echo\\s+Linux\\s*$"], "deny": [] } },
+  "allowlistBins": ["bash","sh","echo","pwd","ls","date"]
+}

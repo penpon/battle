@@ -1,0 +1,10 @@
+{
+  "id": "pro-03",
+  "difficulty": "Pro",
+  "type": "task",
+  "timeLimitSec": 90,
+  "prepare": { "image": "ubuntu:22.04", "files": "scenarios/pro-03" },
+  "statement": "/scenario/users.csv から先頭が 'a' のユーザー名のみを重複なく昇順で抽出し、/work/a_users.txt に保存してください。ユーザー名はCSVの1列目です。",
+  "validators": { "effect": { "script": "validators/pro-03.js" } },
+  "allowlistBins": ["bash","sh","grep","awk","cut","tr","sort","uniq","tee","cat","echo","pwd","ls"]
+}

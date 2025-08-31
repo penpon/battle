@@ -1,0 +1,10 @@
+{
+  "id": "premium-05",
+  "difficulty": "Premium",
+  "type": "task",
+  "timeLimitSec": 90,
+  "prepare": { "image": "ubuntu:22.04", "files": "scenarios/premium-05" },
+  "statement": "/scenario/project ディレクトリを /work/project-backup に中身ごとコピーしてください（/work/project-backup が無い場合は作成）。",
+  "validators": { "effect": { "script": "validators/premium-05.js" } },
+  "allowlistBins": ["bash","sh","mkdir","cp","ls","echo","cat","pwd","date"]
+}

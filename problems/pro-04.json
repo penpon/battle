@@ -1,0 +1,10 @@
+{
+  "id": "pro-04",
+  "difficulty": "Pro",
+  "type": "task",
+  "timeLimitSec": 90,
+  "prepare": { "image": "ubuntu:22.04", "files": "scenarios/pro-04" },
+  "statement": "/scenario/logs 内の全 .log ファイルから 'WARN' を含む行のみを抽出し、/work/warns.log に保存してください（ファイルの辞書順で結合し、各ファイル内は元の行順）。",
+  "validators": { "effect": { "script": "validators/pro-04.js" } },
+  "allowlistBins": ["bash","sh","grep","cat","sort","uniq","tee","awk","sed","echo","pwd","ls"]
+}

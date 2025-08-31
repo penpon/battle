@@ -1,0 +1,10 @@
+{
+  "id": "premium-03",
+  "difficulty": "Premium",
+  "type": "task",
+  "timeLimitSec": 90,
+  "prepare": { "image": "ubuntu:22.04", "files": "scenarios/premium-03" },
+  "statement": "/scenario/reports にある拡張子 .txt のファイルを /work/archive/ にすべてコピーしてください（/work/archive が無い場合は作成）。",
+  "validators": { "effect": { "script": "validators/premium-03.js" } },
+  "allowlistBins": ["bash","sh","mkdir","cp","ls","echo","cat","pwd","date"]
+}

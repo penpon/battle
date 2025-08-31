@@ -1,0 +1,13 @@
+{
+  "id": "basic-04",
+  "difficulty": "Basic",
+  "type": "hole",
+  "timeLimitSec": 90,
+  "prepare": { "image": "ubuntu:22.04", "files": "scenarios/basic-04" },
+  "statement": "/scenario/app.log の末尾2行のみを表示してください。",
+  "validators": {
+    "effect": { "script": "validators/basic-04.js" },
+    "regex": { "allow": ["^\\s*tail\\s+(-n\\s+)?2\\s+/scenario/app\\.log\\s*$"], "deny": [] }
+  },
+  "allowlistBins": ["bash","sh","tail","cat","echo","pwd","ls","wc"]
+}
