@@ -1,0 +1,13 @@
+{
+  "id": "pro-01",
+  "difficulty": "Pro",
+  "type": "task",
+  "timeLimitSec": 90,
+  "prepare": { "image": "ubuntu:22.04", "files": "scenarios/pro-01" },
+  "statement": "/scenario/app.log から ERROR を含む行のみを /work/errors.txt に保存してください。",
+  "validators": {
+    "effect": { "script": "validators/pro-01.js" },
+    "regex": null
+  },
+  "allowlistBins": ["bash","sh","pwd","ls","echo","cat","touch","mkdir","rmdir","cp","mv","rm","head","tail","wc","sort","uniq","cut","tr","grep","find","date"]
+}

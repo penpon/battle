@@ -1,0 +1,13 @@
+{
+  "id": "basic-01",
+  "difficulty": "Basic",
+  "type": "hole",
+  "timeLimitSec": 90,
+  "prepare": { "image": "ubuntu:22.04", "files": "scenarios/basic-01" },
+  "statement": "/scenario/app.log から ERROR を含む行のみを表示してください。",
+  "validators": {
+    "effect": { "script": "validators/basic-01.js" },
+    "regex": { "allow": ["^\\s*grep\\s+.+\\s+/scenario/app\\.log\\s*$"], "deny": [] }
+  },
+  "allowlistBins": ["bash","sh","pwd","ls","echo","cat","touch","mkdir","rmdir","cp","mv","rm","head","tail","wc","sort","uniq","cut","tr","grep","find","date"]
+}

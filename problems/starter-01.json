@@ -1,0 +1,13 @@
+{
+  "id": "starter-01",
+  "difficulty": "Starter",
+  "type": "hole",
+  "timeLimitSec": 90,
+  "prepare": { "image": "ubuntu:22.04", "files": null },
+  "statement": "現在のディレクトリの絶対パスを表示してください。",
+  "validators": {
+    "effect": { "script": "validators/starter-01.js" },
+    "regex": { "allow": ["^\\s*pwd\\s*$"], "deny": [] }
+  },
+  "allowlistBins": ["bash","sh","pwd","ls","echo","cat","touch","mkdir","rmdir","cp","mv","rm","head","tail","wc","sort","uniq","cut","tr","grep","find","date"]
+}
