@@ -90,6 +90,32 @@ function startSet(roomId: string, problems: string[], difficulty?: string) {
   startQuestionPhase(roomId, state, 90);
 }
 
+// コマンド先頭の実行ファイル名を抽出する
+// 例: 
+//   "head -n 3 /scenario/app.log" -> "head"
+//   "/bin/ls -l" -> "ls"
+//   "FOO=1 BAR=2 grep ERROR file" -> "grep"
+//   "'awk' -F, '{print $1}' file" -> "awk"
+function extractFirstExecutable(command: string): string | null {
+  const trimmed = (command || '').trim();
+  if (!trimmed) return null;
+
+  // トークン分割（シンプル版）
+  const parts = trimmed.split(/\s+/);
+  for (let raw of parts) {
+    // 変数代入プリフィクスをスキップ
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(raw)) continue;
+    // 引用符除去
+    if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+      raw = raw.slice(1, -1);
+    }
+    if (!raw) continue;
+    const base = path.basename(raw);
+    return base || null;
+  }
+  return null;
+}
+
 io.on('connection', (socket) => {
   socket.on('join_room', ({ roomId, userId }) => {
     socket.join(roomId);
@@ -143,6 +169,53 @@ io.on('connection', (socket) => {
         return;
       }
       const problem = JSON.parse(await fs.readFile(problemPath, 'utf8'));
+
+      // 2-a) allowlist プリセットと個別リストの適用（任意）。
+      //      未指定でも difficulty に応じたデフォルトプリセットを補完（既定セーフティ）。
+      try {
+        const presetName = (problem?.allowlistPreset ?? null) as string | null;
+        const binsFromProblem = Array.isArray(problem?.allowlistBins) ? (problem.allowlistBins as string[]) : [];
+        let binsFromPreset: string[] = [];
+        if (presetName) {
+          const presetsPath = path.join(repoRoot, 'problems', '_allowlists.json');
+          try {
+            const txt = await fs.readFile(presetsPath, 'utf8');
+            const obj = JSON.parse(txt);
+            const p = obj?.presets?.[presetName];
+            if (Array.isArray(p)) binsFromPreset = p as string[];
+          } catch {}
+        }
+        let allowlist = Array.from(new Set([...(binsFromPreset || []), ...(binsFromProblem || [])]));
+
+        // デフォルト補完: difficulty があり、allowlist が空の場合、難易度に応じたプリセットを適用
+        if (allowlist.length === 0 && typeof problem?.difficulty === 'string') {
+          const diff = String(problem.difficulty).toLowerCase();
+          const map: Record<string, string> = {
+            starter: 'starter_wide',
+            basic: 'basic_wide',
+            premium: 'premium_task',
+            pro: 'pro_task',
+          };
+          const inferred = map[diff];
+          if (inferred) {
+            const presetsPath = path.join(repoRoot, 'problems', '_allowlists.json');
+            try {
+              const txt = await fs.readFile(presetsPath, 'utf8');
+              const obj = JSON.parse(txt);
+              const p = obj?.presets?.[inferred];
+              if (Array.isArray(p)) allowlist = Array.from(new Set([...(p as string[]), ...allowlist]));
+            } catch {}
+          }
+        }
+        if (allowlist.length > 0) {
+          const bin = extractFirstExecutable(command);
+          if (bin && !allowlist.includes(bin)) {
+            const out = { problemId, ok: false, reason: 'bin_not_allowed', stdout: '', stderr: `not allowed: ${bin}`, exitCode: 126 };
+            socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
+            return;
+          }
+        }
+      } catch {}
 
       // 2) Regex Judge（穴埋め問題向け）
       const regexCfg = problem?.validators?.regex as { allow?: string[]; deny?: string[] } | null | undefined;
