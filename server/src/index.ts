@@ -15,10 +15,107 @@ fastify.get('/health', async () => ({ ok: true }));
 const server = http.createServer(fastify as any);
 const io = new IOServer(server, { cors: { origin: '*' } });
 
+// --- Room state for set progression ---
+type Phase = 'idle' | 'question' | 'interval';
+interface RoomState {
+  phase: Phase;
+  problems: string[];
+  qIndex: number;
+  remainingSec: number;
+  timer?: NodeJS.Timeout;
+  difficulty?: string;
+}
+const roomStates = new Map<string, RoomState>();
+
+function clearRoomTimer(state: RoomState) {
+  if (state.timer) { clearInterval(state.timer); state.timer = undefined; }
+}
+
+function broadcast(roomId: string, ev: string, payload: any) {
+  io.to(roomId).emit(ev, payload);
+}
+
+function startIntervalPhase(roomId: string, state: RoomState, sec: number) {
+  state.phase = 'interval';
+  state.remainingSec = sec;
+  broadcast(roomId, 'interval_start', { roomId, sec });
+  clearRoomTimer(state);
+  state.timer = setInterval(() => {
+    state.remainingSec -= 1;
+    broadcast(roomId, 'timer_tick', { roomId, phase: state.phase, remainingSec: state.remainingSec });
+    if (state.remainingSec <= 0) {
+      clearRoomTimer(state);
+      broadcast(roomId, 'interval_end', { roomId });
+      // 次の問題へ
+      state.qIndex += 1;
+      if (state.qIndex >= state.problems.length) {
+        state.phase = 'idle';
+        broadcast(roomId, 'set_end', { roomId });
+        roomStates.delete(roomId);
+      } else {
+        startQuestionPhase(roomId, state, 90);
+      }
+    }
+  }, 1000);
+}
+
+function startQuestionPhase(roomId: string, state: RoomState, sec: number) {
+  state.phase = 'question';
+  state.remainingSec = sec;
+  const problemId = state.problems[state.qIndex];
+  broadcast(roomId, 'question_start', { roomId, problemId, index: state.qIndex, total: state.problems.length, sec });
+  clearRoomTimer(state);
+  state.timer = setInterval(() => {
+    state.remainingSec -= 1;
+    broadcast(roomId, 'timer_tick', { roomId, phase: state.phase, remainingSec: state.remainingSec, problemId });
+    if (state.remainingSec <= 0) {
+      clearRoomTimer(state);
+      broadcast(roomId, 'question_end', { roomId, problemId, index: state.qIndex });
+      startIntervalPhase(roomId, state, 5);
+    }
+  }, 1000);
+}
+
+function startSet(roomId: string, problems: string[], difficulty?: string) {
+  let state = roomStates.get(roomId);
+  if (state) { clearRoomTimer(state); }
+  state = { phase: 'idle', problems, qIndex: 0, remainingSec: 0, timer: undefined, difficulty };
+  roomStates.set(roomId, state);
+  broadcast(roomId, 'set_start', { roomId, difficulty, problems, total: problems.length });
+  if (problems.length === 0) {
+    broadcast(roomId, 'set_end', { roomId });
+    roomStates.delete(roomId);
+    return;
+  }
+  startQuestionPhase(roomId, state, 90);
+}
+
 io.on('connection', (socket) => {
   socket.on('join_room', ({ roomId, userId }) => {
     socket.join(roomId);
     socket.to(roomId).emit('system', `${userId} joined`);
+  });
+
+  // セット開始: { roomId, difficulty, problems }
+  socket.on('set_start', (payload) => {
+    try {
+      const { roomId, difficulty, problems } = payload as { roomId: string; difficulty?: string; problems: string[] };
+      if (!roomId || !Array.isArray(problems)) return;
+      socket.join(roomId);
+      startSet(roomId, problems, difficulty);
+    } catch {}
+  });
+
+  // セット中断: { roomId }
+  socket.on('set_cancel', (payload) => {
+    try {
+      const { roomId } = payload as { roomId: string };
+      const state = roomStates.get(roomId);
+      if (!state) return;
+      clearRoomTimer(state);
+      roomStates.delete(roomId);
+      broadcast(roomId, 'set_cancelled', { roomId });
+    } catch {}
   });
 
   socket.on('submit_command', async (payload) => {
