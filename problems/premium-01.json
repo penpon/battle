@@ -3,11 +3,34 @@
   "difficulty": "Premium",
   "type": "task",
   "timeLimitSec": 90,
-  "prepare": { "image": "ubuntu:22.04", "files": "scenarios/premium-01" },
+  "prepare": {
+    "image": "ubuntu:22.04",
+    "files": "scenarios/premium-01"
+  },
   "statement": "/scenario/a.txt を /work/backup/ ディレクトリへコピーしてください（/work/backup がない場合は作成してください）。",
   "validators": {
-    "effect": { "script": "validators/premium-01.js" },
+    "effect": {
+      "script": "validators/premium-01.js"
+    },
     "regex": null
   },
-  "allowlistBins": ["bash","sh","pwd","ls","echo","cat","touch","mkdir","rmdir","cp","mv","rm","head","tail","wc","date"]
+  "allowlistBins": [
+    "bash",
+    "sh",
+    "pwd",
+    "ls",
+    "echo",
+    "cat",
+    "touch",
+    "mkdir",
+    "rmdir",
+    "cp",
+    "mv",
+    "rm",
+    "head",
+    "tail",
+    "wc",
+    "date"
+  ],
+  "allowlistPreset": "premium_task"
 }
