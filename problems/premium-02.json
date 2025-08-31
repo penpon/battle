@@ -1,0 +1,12 @@
+{
+  "id": "premium-02",
+  "difficulty": "Premium",
+  "type": "task",
+  "timeLimitSec": 90,
+  "prepare": { "image": "ubuntu:22.04", "files": "scenarios/premium-02" },
+  "statement": "/scenario にある拡張子 .log のファイルを /work/logs/ にすべてコピーしてください（/work/logs が無い場合は作成）。",
+  "validators": {
+    "effect": { "script": "validators/premium-02.js" }
+  },
+  "allowlistBins": ["bash","sh","mkdir","cp","ls","find","echo","cat","pwd","date"]
+}

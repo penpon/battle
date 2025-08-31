@@ -1,0 +1,14 @@
+
+{
+  "id": "basic-02",
+  "difficulty": "Basic",
+  "type": "hole",
+  "timeLimitSec": 90,
+  "prepare": { "image": "ubuntu:22.04", "files": "scenarios/basic-02" },
+  "statement": "/scenario/app.log の先頭3行のみを表示してください。",
+  "validators": {
+    "effect": { "script": "validators/basic-02.js" },
+    "regex": { "allow": ["^\\s*head\\s+(-n\\s+)?3\\s+/scenario/app\\.log\\s*$"], "deny": [] }
+  },
+  "allowlistBins": ["bash","sh","head","cat","grep","wc","tail","sort","uniq","cut","tr","pwd","ls","echo","date"]
+}
