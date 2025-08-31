@@ -1,0 +1,5 @@
+2025-08-31 11:20:00 INFO request GET /
+2025-08-31 11:20:01 ERROR failed to load config
+2025-08-31 11:20:02 INFO retrying
+2025-08-31 11:20:03 ERROR timeout while connecting to DB
+2025-08-31 11:20:04 INFO done

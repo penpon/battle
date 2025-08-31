@@ -1,0 +1,5 @@
+2025-08-31 10:01:02 INFO server started
+2025-08-31 10:02:13 ERROR database connection failed
+2025-08-31 10:03:44 WARN retrying connection
+2025-08-31 10:04:55 ERROR failed to fetch user profile
+2025-08-31 10:05:01 INFO shutting down
