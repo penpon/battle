@@ -1,0 +1,4 @@
+2025-01-01 00:00:01 INFO start
+2025-01-01 00:00:02 WARN cache low
+2025-01-01 00:00:04 INFO ok
+2025-01-01 00:00:05 WARN disk nearly full
