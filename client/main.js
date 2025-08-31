@@ -2,6 +2,7 @@
   const $ = (id) => document.getElementById(id);
   let socket = null;
   let currentProblemId = null;
+  let currentPhase = 'idle';
 
   // 難易度ごとの5問プリセット
   const PRESETS = {
@@ -26,7 +27,15 @@
     el.scrollTop = el.scrollHeight;
   }
 
-  function setPhase(p) { $('phase').textContent = p; }
+  function setPhase(p) {
+    currentPhase = p;
+    $('phase').textContent = p;
+    const disableCmd = p !== 'question';
+    const cmdEl = $('command');
+    const btnEl = $('btnSend');
+    if (cmdEl) cmdEl.disabled = disableCmd;
+    if (btnEl) btnEl.disabled = disableCmd;
+  }
   function setRemain(v) { $('remain').textContent = String(v); }
   function setProblem(id, idx, total) {
     $('currentProblem').textContent = id || '-';
@@ -56,6 +65,9 @@
       setProblem(p.problemId, p.index, p.total);
       setRemain(p.sec);
       log(`[question_start] ${p.problemId}`);
+      // 概要をクリア
+      const vs = document.getElementById('verdictSummary');
+      if (vs) { vs.textContent = '-'; vs.classList.remove('v-ok','v-ng'); }
     });
     socket.on('question_end', (p) => { setPhase('interval'); log(`[question_end] ${p.problemId}`); });
 
@@ -66,6 +78,14 @@
 
     socket.on('verdict', (v) => {
       log(`[verdict] problem=${v.problemId} ok=${v.ok} code=${v.exitCode}\nstdout:\n${v.stdout}\n---\nstderr:\n${v.stderr}\n`);
+      const vs = document.getElementById('verdictSummary');
+      if (vs) {
+        const ok = !!v.ok;
+        vs.classList.remove('v-ok','v-ng');
+        vs.classList.add(ok ? 'v-ok' : 'v-ng');
+        const msg = ok ? 'OK' : (v.reason || 'NG');
+        vs.textContent = `#${(v.problemId || '-')}: ${msg} (exit ${v.exitCode})`;
+      }
     });
   });
 

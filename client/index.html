@@ -13,6 +13,9 @@
     input[type=text], textarea, select { width: 100%; max-width: 640px; }
     textarea { height: 80px; }
     .inline { display: inline-block; margin-right: 8px; }
+    #verdictSummary { padding: 8px; border-radius: 4px; }
+    .v-ok { background: #e7f7ec; color: #116329; border: 1px solid #a6e1b9; }
+    .v-ng { background: #fdeaea; color: #8a1f1f; border: 1px solid #f5b5b5; }
   </style>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" integrity="sha384-7b4x8tXoY5a4I9qN8m2bM+3g8m8yH3zM9oS2q0kLwqQGQHkE8As7oK0m0j5pZb1R" crossorigin="anonymous"></script>
 </head>
@@ -56,6 +59,11 @@
     <legend>コマンド</legend>
     <div class="row"><label>Command</label> <input id="command" type="text" placeholder="例) head -n 3 /scenario/app.log" /></div>
     <button id="btnSend">Submit</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>結果概要</legend>
+    <div id="verdictSummary">-</div>
   </fieldset>
 
   <fieldset>
