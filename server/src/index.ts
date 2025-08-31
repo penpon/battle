@@ -3,6 +3,7 @@ import { Server as IOServer } from 'socket.io';
 import http from 'http';
 import path from 'path';
 import fs from 'fs/promises';
+import os from 'os';
 import { runInSandbox } from './dockerRunner';
 import { judgeByRegex, type RegexJudge, type ExecResult, type FS as JudgeFS } from './judge';
 import { pathToFileURL } from 'url';
@@ -21,6 +22,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('submit_command', async (payload) => {
+    let hostWorkDir: string | null = null;
     try {
       const { roomId, problemId, command } = payload as { roomId: string; problemId: string; command: string };
       const repoRoot = path.resolve(__dirname, '..', '..');
@@ -65,10 +67,18 @@ io.on('connection', (socket) => {
       const files = problem?.prepare?.files as string | null | undefined; // 例: "scenarios/basic-01"
       if (files) scenarioDir = path.join(repoRoot, files);
 
-      // 4) Dockerで実行
-      const run = await runInSandbox({ image: problem?.prepare?.image || 'ubuntu:22.04', cmd: command, scenarioDir });
+      // 4) ホスト一時 /work ディレクトリ（bind mount 用）
+      hostWorkDir = await fs.mkdtemp(path.join(os.tmpdir(), 'duel-work-'));
 
-      // 5) Effect Validator（MVP: /scenarioのみ参照可能）
+      // 5) Dockerで実行
+      const run = await runInSandbox({
+        image: problem?.prepare?.image || 'ubuntu:22.04',
+        cmd: command,
+        scenarioDir,
+        workHostDir: hostWorkDir,
+      });
+
+      // 6) Effect Validator（/scenario と /work を参照可能）
       const effScript = problem?.validators?.effect?.script as string | undefined;
       let ok = true; let reason: string | undefined;
       if (effScript) {
@@ -82,12 +92,20 @@ io.on('connection', (socket) => {
                 const rel = p.slice('/scenario'.length);
                 return fs.readFile(path.join(scenarioDir, rel), 'utf8');
               }
+              if (hostWorkDir && p.startsWith('/work')) {
+                const rel = p.slice('/work'.length);
+                return fs.readFile(path.join(hostWorkDir, rel), 'utf8');
+              }
               throw new Error('FS readFile not supported for path: ' + p);
             },
             exists: async (p: string) => {
               if (scenarioDir && p.startsWith('/scenario')) {
                 const rel = p.slice('/scenario'.length);
                 try { await fs.access(path.join(scenarioDir, rel)); return true; } catch { return false; }
+              }
+              if (hostWorkDir && p.startsWith('/work')) {
+                const rel = p.slice('/work'.length);
+                try { await fs.access(path.join(hostWorkDir, rel)); return true; } catch { return false; }
               }
               return false;
             },
@@ -110,6 +128,11 @@ io.on('connection', (socket) => {
         const out = { problemId, ok: false, reason: 'internal_error' };
         socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
       } catch {}
+    } finally {
+      // cleanup host /work
+      if (hostWorkDir) {
+        try { await fs.rm(hostWorkDir, { recursive: true, force: true }); } catch {}
+      }
     }
   });
   socket.on('disconnect', () => {});
