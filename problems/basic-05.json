@@ -3,11 +3,32 @@
   "difficulty": "Basic",
   "type": "hole",
   "timeLimitSec": 90,
-  "prepare": { "image": "ubuntu:22.04", "files": "scenarios/basic-05" },
+  "prepare": {
+    "image": "ubuntu:22.04",
+    "files": "scenarios/basic-05"
+  },
   "statement": "/scenario/data.tsv の第2列だけを重複なく昇順で表示してください。",
   "validators": {
-    "effect": { "script": "validators/basic-05.js" },
-    "regex": { "allow": ["^\\s*cut\\s+-f2\\s+/scenario/data\\.tsv\\s*\\|\\s*sort\\s*-u\\s*$"], "deny": [] }
+    "effect": {
+      "script": "validators/basic-05.js"
+    },
+    "regex": {
+      "allow": [
+        "^\\s*cut\\s+-f2\\s+/scenario/data\\.tsv\\s*\\|\\s*sort\\s*-u\\s*$"
+      ],
+      "deny": []
+    }
   },
-  "allowlistBins": ["bash","sh","cut","sort","uniq","cat","echo","pwd","ls"]
+  "allowlistBins": [
+    "bash",
+    "sh",
+    "cut",
+    "sort",
+    "uniq",
+    "cat",
+    "echo",
+    "pwd",
+    "ls"
+  ],
+  "allowlistPreset": "basic_wide"
 }

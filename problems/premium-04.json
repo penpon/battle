@@ -3,8 +3,26 @@
   "difficulty": "Premium",
   "type": "task",
   "timeLimitSec": 90,
-  "prepare": { "image": "ubuntu:22.04", "files": "scenarios/premium-04" },
+  "prepare": {
+    "image": "ubuntu:22.04",
+    "files": "scenarios/premium-04"
+  },
   "statement": "/scenario/input にある拡張子 .csv のファイルを /work/data/ にすべてコピーしてください（/work/data が無い場合は作成）。",
-  "validators": { "effect": { "script": "validators/premium-04.js" } },
-  "allowlistBins": ["bash","sh","mkdir","cp","ls","echo","cat","pwd","date"]
+  "validators": {
+    "effect": {
+      "script": "validators/premium-04.js"
+    }
+  },
+  "allowlistBins": [
+    "bash",
+    "sh",
+    "mkdir",
+    "cp",
+    "ls",
+    "echo",
+    "cat",
+    "pwd",
+    "date"
+  ],
+  "allowlistPreset": "premium_task"
 }

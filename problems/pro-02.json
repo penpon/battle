@@ -3,10 +3,31 @@
   "difficulty": "Pro",
   "type": "task",
   "timeLimitSec": 90,
-  "prepare": { "image": "ubuntu:22.04", "files": "scenarios/pro-02" },
+  "prepare": {
+    "image": "ubuntu:22.04",
+    "files": "scenarios/pro-02"
+  },
   "statement": "/scenario/app.log から `ERROR[コード]` のコード部分（例: E100）だけを重複なく抽出し、/work/error_codes.txt に保存してください（順序は任意）。",
   "validators": {
-    "effect": { "script": "validators/pro-02.js" }
+    "effect": {
+      "script": "validators/pro-02.js"
+    }
   },
-  "allowlistBins": ["bash","sh","grep","sed","awk","cut","tr","sort","uniq","tee","cat","echo","pwd","ls"]
+  "allowlistBins": [
+    "bash",
+    "sh",
+    "grep",
+    "sed",
+    "awk",
+    "cut",
+    "tr",
+    "sort",
+    "uniq",
+    "tee",
+    "cat",
+    "echo",
+    "pwd",
+    "ls"
+  ],
+  "allowlistPreset": "pro_task"
 }

@@ -3,10 +3,42 @@
   "difficulty": "Starter",
   "type": "hole",
   "timeLimitSec": 90,
-  "prepare": { "image": "ubuntu:22.04", "files": null },
+  "prepare": {
+    "image": "ubuntu:22.04",
+    "files": null
+  },
   "statement": "現在のディレクトリの内容を一覧表示してください。",
   "validators": {
-    "regex": { "allow": ["^\\s*ls(\\s+-[A-Za-z]+)?\\s*$"], "deny": [] }
+    "regex": {
+      "allow": [
+        "^\\s*ls(\\s+-[A-Za-z]+)?\\s*$"
+      ],
+      "deny": []
+    }
   },
-  "allowlistBins": ["bash","sh","pwd","ls","echo","cat","touch","mkdir","rmdir","cp","mv","rm","head","tail","wc","sort","uniq","cut","tr","grep","find","date"]
+  "allowlistBins": [
+    "bash",
+    "sh",
+    "pwd",
+    "ls",
+    "echo",
+    "cat",
+    "touch",
+    "mkdir",
+    "rmdir",
+    "cp",
+    "mv",
+    "rm",
+    "head",
+    "tail",
+    "wc",
+    "sort",
+    "uniq",
+    "cut",
+    "tr",
+    "grep",
+    "find",
+    "date"
+  ],
+  "allowlistPreset": "starter_wide"
 }

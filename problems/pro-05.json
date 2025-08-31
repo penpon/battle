@@ -3,8 +3,30 @@
   "difficulty": "Pro",
   "type": "task",
   "timeLimitSec": 90,
-  "prepare": { "image": "ubuntu:22.04", "files": "scenarios/pro-05" },
+  "prepare": {
+    "image": "ubuntu:22.04",
+    "files": "scenarios/pro-05"
+  },
   "statement": "/scenario/nginx.conf から server_name ディレクティブの値のみを重複なく抽出し、/work/server_names.txt に保存してください（順序は任意）。",
-  "validators": { "effect": { "script": "validators/pro-05.js" } },
-  "allowlistBins": ["bash","sh","grep","sed","awk","tr","sort","uniq","tee","cat","echo","pwd","ls"]
+  "validators": {
+    "effect": {
+      "script": "validators/pro-05.js"
+    }
+  },
+  "allowlistBins": [
+    "bash",
+    "sh",
+    "grep",
+    "sed",
+    "awk",
+    "tr",
+    "sort",
+    "uniq",
+    "tee",
+    "cat",
+    "echo",
+    "pwd",
+    "ls"
+  ],
+  "allowlistPreset": "pro_task"
 }

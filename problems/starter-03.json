@@ -3,8 +3,26 @@
   "difficulty": "Starter",
   "type": "hole",
   "timeLimitSec": 90,
-  "prepare": { "image": "ubuntu:22.04", "files": null },
+  "prepare": {
+    "image": "ubuntu:22.04",
+    "files": null
+  },
   "statement": "現在の日時を表示してください。",
-  "validators": { "regex": { "allow": ["^\\s*date(\\s+.+)?\\s*$"], "deny": [] } },
-  "allowlistBins": ["bash","sh","date","echo","pwd","ls"]
+  "validators": {
+    "regex": {
+      "allow": [
+        "^\\s*date(\\s+.+)?\\s*$"
+      ],
+      "deny": []
+    }
+  },
+  "allowlistBins": [
+    "bash",
+    "sh",
+    "date",
+    "echo",
+    "pwd",
+    "ls"
+  ],
+  "allowlistPreset": "starter_wide"
 }

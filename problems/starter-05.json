@@ -3,8 +3,27 @@
   "difficulty": "Starter",
   "type": "hole",
   "timeLimitSec": 90,
-  "prepare": { "image": "ubuntu:22.04", "files": null },
+  "prepare": {
+    "image": "ubuntu:22.04",
+    "files": null
+  },
   "statement": "カレントディレクトリに testdir という空のディレクトリを作成してください。",
-  "validators": { "regex": { "allow": ["^\\s*mkdir(\\s+-p)?\\s+testdir\\s*$"], "deny": [] } },
-  "allowlistBins": ["bash","sh","mkdir","ls","echo","pwd","date"]
+  "validators": {
+    "regex": {
+      "allow": [
+        "^\\s*mkdir(\\s+-p)?\\s+testdir\\s*$"
+      ],
+      "deny": []
+    }
+  },
+  "allowlistBins": [
+    "bash",
+    "sh",
+    "mkdir",
+    "ls",
+    "echo",
+    "pwd",
+    "date"
+  ],
+  "allowlistPreset": "starter_wide"
 }
