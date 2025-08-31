@@ -1,0 +1,17 @@
+{
+  "presets": {
+    "starter_wide": [
+      "bash","sh","echo","pwd","ls","date","cat","head","tail","wc","sort","uniq","cut","tr","grep","find","touch","mkdir","rmdir","cp","mv","rm"
+    ],
+    "basic_wide": [
+      "bash","sh","echo","pwd","ls","date","cat","head","tail","wc","sort","uniq","cut","tr","grep","find","sed","awk","tee"
+    ],
+    "premium_task": [
+      "bash","sh","echo","pwd","ls","mkdir","cp","mv","rm","find","tee","cat","date"
+    ],
+    "pro_task": [
+      "bash","sh","echo","pwd","ls","grep","sed","awk","cut","tr","sort","uniq","tee","cat","head","tail","date"
+    ]
+  },
+  "note": "現状サーバではallowlistは強制していません（仕様: 制約は問題作成ポリシーで担保）。本ファイルは問題JSONからallowlistPresetで参照するための共通定義です。既存のallowlistBinsは後方互換のため残してOK。"
+}
