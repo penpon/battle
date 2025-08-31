@@ -3,6 +3,23 @@
   let socket = null;
   let currentProblemId = null;
 
+  // 難易度ごとの5問プリセット
+  const PRESETS = {
+    Starter: ['starter-01','starter-02','starter-03','starter-04','starter-05'],
+    Basic:   ['basic-01','basic-02','basic-03','basic-04','basic-05'],
+    Premium: ['premium-01','premium-02','premium-03','premium-04','premium-05'],
+    Pro:     ['pro-01','pro-02','pro-03','pro-04','pro-05'],
+  };
+
+  function applyPresetByDifficulty() {
+    const sel = $('difficulty');
+    if (!sel) return;
+    const diff = sel.value;
+    if (PRESETS[diff]) {
+      $('problems').value = PRESETS[diff].join(',');
+    }
+  }
+
   function log(msg) {
     const el = $('log');
     el.textContent += `${msg}\n`;
@@ -51,6 +68,12 @@
       log(`[verdict] problem=${v.problemId} ok=${v.ok} code=${v.exitCode}\nstdout:\n${v.stdout}\n---\nstderr:\n${v.stderr}\n`);
     });
   });
+
+  // 難易度変更時にプリセットを適用
+  const diffEl = $('difficulty');
+  if (diffEl) diffEl.addEventListener('change', applyPresetByDifficulty);
+  // 初期適用
+  applyPresetByDifficulty();
 
   $('btnStart').addEventListener('click', () => {
     if (!socket) return;
