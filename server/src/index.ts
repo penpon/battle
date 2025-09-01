@@ -329,8 +329,10 @@ async function bootstrap() {
     });
 
     await fastify.ready();
-    server.listen(3000, () => {
-      console.log('Server running on http://localhost:3000');
+    const PORT = parseInt(process.env.PORT ?? '3000', 10);
+    const HOST = process.env.HOST ?? '0.0.0.0';
+    server.listen({ port: PORT, host: HOST }, () => {
+      console.log(`Server running on http://${HOST}:${PORT}`);
     });
   } catch (e) {
     console.error(e);
