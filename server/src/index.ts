@@ -29,8 +29,13 @@ interface RoomState {
   remainingSec: number;
   timer?: NodeJS.Timeout;
   difficulty?: string;
+  roomId: string;
+  statements?: Record<string, string>;
 }
 const roomStates = new Map<string, RoomState>();
+
+// 左右席の管理: roomId -> { left?: socketId, right?: socketId }
+const roomSeats = new Map<string, { left?: string; right?: string }>();
 
 function clearRoomTimer(state: RoomState) {
   if (state.timer) { clearInterval(state.timer); state.timer = undefined; }
@@ -68,7 +73,8 @@ function startQuestionPhase(roomId: string, state: RoomState, sec: number) {
   state.phase = 'question';
   state.remainingSec = sec;
   const problemId = state.problems[state.qIndex];
-  broadcast(roomId, 'question_start', { roomId, problemId, index: state.qIndex, total: state.problems.length, sec });
+  const statement = state.statements?.[problemId];
+  broadcast(roomId, 'question_start', { roomId, problemId, statement, index: state.qIndex, total: state.problems.length, sec });
   clearRoomTimer(state);
   state.timer = setInterval(() => {
     state.remainingSec -= 1;
@@ -81,10 +87,37 @@ function startQuestionPhase(roomId: string, state: RoomState, sec: number) {
   }, 1000);
 }
 
-function startSet(roomId: string, problems: string[], difficulty?: string) {
+async function startSet(roomId: string, problems: string[], difficulty?: string) {
   let state = roomStates.get(roomId);
   if (state) { clearRoomTimer(state); }
-  state = { phase: 'idle', problems, qIndex: 0, remainingSec: 0, timer: undefined, difficulty };
+  state = { phase: 'idle', problems, qIndex: 0, remainingSec: 0, timer: undefined, difficulty, roomId };
+  // 事前に問題文を読み込む
+  const statements: Record<string, string> = {};
+  try {
+    const problemsDir = path.join(repoRoot, 'problems');
+    const entries = await fs.readdir(problemsDir);
+    const byIdPath = new Map<string, string>();
+    for (const name of entries) {
+      if (!name.endsWith('.json')) continue;
+      const full = path.join(problemsDir, name);
+      try {
+        const txt = await fs.readFile(full, 'utf8');
+        const obj = JSON.parse(txt);
+        if (obj?.id && typeof obj.statement === 'string') {
+          byIdPath.set(obj.id, full);
+        }
+      } catch {}
+    }
+    for (const pid of problems) {
+      const p = byIdPath.get(pid);
+      if (!p) continue;
+      try {
+        const obj = JSON.parse(await fs.readFile(p, 'utf8'));
+        if (typeof obj.statement === 'string') statements[pid] = obj.statement as string;
+      } catch {}
+    }
+  } catch {}
+  state.statements = statements;
   roomStates.set(roomId, state);
   broadcast(roomId, 'set_start', { roomId, difficulty, problems, total: problems.length });
   if (problems.length === 0) {
@@ -122,9 +155,22 @@ function extractFirstExecutable(command: string): string | null {
 }
 
 io.on('connection', (socket: Socket) => {
-  socket.on('join_room', ({ roomId, userId }: { roomId: string; userId: string }) => {
-    socket.join(roomId);
-    socket.to(roomId).emit('system', `${userId} joined`);
+  // 自動入室と座席割当（デフォルト roomId=r1）
+  socket.on('ready', ({ roomId }: { roomId?: string } = {}) => {
+    const rid = roomId || 'r1';
+    socket.join(rid);
+    let seats = roomSeats.get(rid) || {};
+    if (!seats.left) {
+      seats.left = socket.id;
+      socket.emit('seat_assigned', { roomId: rid, seat: 'left' });
+    } else if (!seats.right) {
+      seats.right = socket.id;
+      socket.emit('seat_assigned', { roomId: rid, seat: 'right' });
+    } else {
+      // 3人目以降は観戦席
+      socket.emit('seat_assigned', { roomId: rid, seat: 'spectator' });
+    }
+    roomSeats.set(rid, seats);
   });
 
   // セット開始: { roomId, difficulty, problems }
@@ -296,6 +342,21 @@ io.on('connection', (socket: Socket) => {
 
       const out = { problemId, ok, reason, stdout: run.stdout, stderr: run.stderr, exitCode: run.exitCode };
       socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
+
+      // 正解なら勝者を通知し、即インターバルへ移行
+      if (ok) {
+        const state = roomStates.get(roomId);
+        if (state && state.phase === 'question') {
+          let seat: 'left' | 'right' | 'unknown' = 'unknown';
+          const seats = roomSeats.get(roomId);
+          if (seats?.left === socket.id) seat = 'left';
+          else if (seats?.right === socket.id) seat = 'right';
+          broadcast(roomId, 'winner', { roomId, problemId, seat, command });
+          clearRoomTimer(state);
+          broadcast(roomId, 'question_end', { roomId, problemId, index: state.qIndex });
+          startIntervalPhase(roomId, state, 5);
+        }
+      }
     } catch {
       try {
         const { roomId, problemId } = (payload || {}) as any;
@@ -309,7 +370,14 @@ io.on('connection', (socket: Socket) => {
       }
     }
   });
-  socket.on('disconnect', () => {});
+  socket.on('disconnect', () => {
+    // 座席解放
+    for (const [rid, seats] of roomSeats.entries()) {
+      if (seats.left === socket.id) seats.left = undefined;
+      if (seats.right === socket.id) seats.right = undefined;
+      roomSeats.set(rid, seats);
+    }
+  });
 });
 
 async function bootstrap() {
