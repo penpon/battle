@@ -1,6 +1,5 @@
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import { Server as IOServer, type Socket } from 'socket.io';
-import http from 'http';
 import path from 'path';
 import fs from 'fs/promises';
 import os from 'os';
@@ -18,8 +17,8 @@ const fastify = Fastify();
 
 fastify.get('/health', async () => ({ ok: true }));
 
-const server = http.createServer(fastify as any);
-const io = new IOServer(server, { cors: { origin: '*' } });
+// Fastify の内部 http.Server に Socket.IO を接続
+const io = new IOServer(fastify.server, { cors: { origin: '*' } });
 
 // --- Room state for set progression ---
 type Phase = 'idle' | 'question' | 'interval';
@@ -316,24 +315,22 @@ io.on('connection', (socket: Socket) => {
 async function bootstrap() {
   try {
     // 静的配信: client/ を同一オリジンで配信
-    await fastify.register(fastifyStatic, {
+    await fastify.register(fastifyStatic as any, {
       root: path.join(repoRoot, 'client'),
       prefix: '/',
       index: ['index.html'],
-      decorateReply: false,
     } as any);
     fastify.get('/', async (req: FastifyRequest, reply: FastifyReply) => {
-      // index.html を返す
-      // @ts-ignore - sendFileはプラグインで追加
+      // index.html を返す（@fastify/static が reply.sendFile を提供）
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (reply as any).sendFile('index.html');
     });
 
     await fastify.ready();
     const PORT = parseInt(process.env.PORT ?? '3000', 10);
     const HOST = process.env.HOST ?? '0.0.0.0';
-    server.listen({ port: PORT, host: HOST }, () => {
-      console.log(`Server running on http://${HOST}:${PORT}`);
-    });
+    await fastify.listen({ port: PORT, host: HOST });
+    console.log(`Server running on http://${HOST}:${PORT}`);
   } catch (e) {
     console.error(e);
     process.exit(1);
