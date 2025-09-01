@@ -1,12 +1,18 @@
-import Fastify from 'fastify';
-import { Server as IOServer } from 'socket.io';
+import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
+import { Server as IOServer, type Socket } from 'socket.io';
 import http from 'http';
 import path from 'path';
 import fs from 'fs/promises';
 import os from 'os';
-import { runInSandbox } from './dockerRunner';
-import { judgeByRegex, type RegexJudge, type ExecResult, type FS as JudgeFS } from './judge';
-import { pathToFileURL } from 'url';
+import { runInSandbox } from './dockerRunner.js';
+import { judgeByRegex, type RegexJudge, type ExecResult, type FS as JudgeFS } from './judge.js';
+import { pathToFileURL, fileURLToPath } from 'url';
+import fastifyStatic from '@fastify/static';
+
+// ESM互換の __dirname/__filename を定義
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const repoRoot = path.resolve(__dirname, '..', '..');
 
 const fastify = Fastify();
 
@@ -116,14 +122,14 @@ function extractFirstExecutable(command: string): string | null {
   return null;
 }
 
-io.on('connection', (socket) => {
-  socket.on('join_room', ({ roomId, userId }) => {
+io.on('connection', (socket: Socket) => {
+  socket.on('join_room', ({ roomId, userId }: { roomId: string; userId: string }) => {
     socket.join(roomId);
     socket.to(roomId).emit('system', `${userId} joined`);
   });
 
   // セット開始: { roomId, difficulty, problems }
-  socket.on('set_start', (payload) => {
+  socket.on('set_start', (payload: { roomId: string; difficulty?: string; problems: string[] }) => {
     try {
       const { roomId, difficulty, problems } = payload as { roomId: string; difficulty?: string; problems: string[] };
       if (!roomId || !Array.isArray(problems)) return;
@@ -133,7 +139,7 @@ io.on('connection', (socket) => {
   });
 
   // セット中断: { roomId }
-  socket.on('set_cancel', (payload) => {
+  socket.on('set_cancel', (payload: { roomId: string }) => {
     try {
       const { roomId } = payload as { roomId: string };
       const state = roomStates.get(roomId);
@@ -144,11 +150,10 @@ io.on('connection', (socket) => {
     } catch {}
   });
 
-  socket.on('submit_command', async (payload) => {
+  socket.on('submit_command', async (payload: { roomId: string; problemId: string; command: string }) => {
     let hostWorkDir: string | null = null;
     try {
       const { roomId, problemId, command } = payload as { roomId: string; problemId: string; command: string };
-      const repoRoot = path.resolve(__dirname, '..', '..');
 
       // 1) 問題JSONを id で解決
       const problemsDir = path.join(repoRoot, 'problems');
@@ -310,6 +315,19 @@ io.on('connection', (socket) => {
 
 async function bootstrap() {
   try {
+    // 静的配信: client/ を同一オリジンで配信
+    await fastify.register(fastifyStatic, {
+      root: path.join(repoRoot, 'client'),
+      prefix: '/',
+      index: ['index.html'],
+      decorateReply: false,
+    } as any);
+    fastify.get('/', async (req: FastifyRequest, reply: FastifyReply) => {
+      // index.html を返す
+      // @ts-ignore - sendFileはプラグインで追加
+      return (reply as any).sendFile('index.html');
+    });
+
     await fastify.ready();
     server.listen(3000, () => {
       console.log('Server running on http://localhost:3000');
