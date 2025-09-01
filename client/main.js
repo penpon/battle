@@ -228,7 +228,6 @@
     socket.on('set_start', (p) => {
       setIndex(0, p.total);
       setPhase('question');
-      $('statement').textContent = '-';
       clearLogs(); hideOverlay();
     });
     socket.on('set_end', () => { setPhase('idle'); hideOverlay(); stopInteractive(); });
