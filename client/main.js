@@ -22,9 +22,10 @@
         problems: problemsStr ? problemsStr.split(',').filter(Boolean) : [],
         auto: sp.get('auto') || '',
         e2e: sp.get('e2e') || '',
+        name: sp.get('name') || '',
       };
     } catch {
-      return { roomId: '', role: '', difficulty: '', problems: [], auto: '', e2e: '' };
+      return { roomId: '', role: '', difficulty: '', problems: [], auto: '', e2e: '', name: '' };
     }
   }
   const __qp = getQuery();
@@ -71,6 +72,11 @@
             } else if (code >= 32) {
               leftLine += ch;
             }
+            // タイピングプレビュー送信（ESCは除外）
+            if (code !== 27) {
+              const preview = (ch === '\r' || ch === '\n') ? '' : leftLine.slice(-24);
+              socket.emit('typing_shell', { roomId, text: preview });
+            }
           }
         }
       });
@@ -96,6 +102,11 @@
               // ESC sequence -> ignore in buffer
             } else if (code >= 32) {
               rightLine += ch;
+            }
+            // タイピングプレビュー送信（ESCは除外）
+            if (code !== 27) {
+              const preview = (ch === '\r' || ch === '\n') ? '' : rightLine.slice(-24);
+              socket.emit('typing_shell', { roomId, text: preview });
             }
           }
         }
@@ -138,6 +149,8 @@
     $('rightVerdict').className = 'verdict'; $('rightVerdict').textContent = '';
     const lt = $('leftTyping'); if (lt) lt.textContent = '';
     const rt = $('rightTyping'); if (rt) rt.textContent = '';
+    const lst = document.getElementById('leftShellTyping'); if (lst) lst.textContent = '';
+    const rst = document.getElementById('rightShellTyping'); if (rst) rst.textContent = '';
     // Quick Shell 関連なし
     // interactive logs
     ensureTerms();
@@ -152,7 +165,38 @@
     $('overlayDesc').textContent = desc || '';
     $('overlay').style.display = 'flex';
   }
-  function hideOverlay() { $('overlay').style.display = 'none'; }
+  function hideOverlay() {
+    const ov = $('overlay');
+    const bn = document.querySelector('#overlay .banner');
+    ov.style.display = 'none';
+    // アニメ用クラスをリセット
+    ov.classList.remove('win', 'win-left', 'win-right');
+    if (bn) bn.classList.remove('win', 'countdown', 'cd-1', 'cd-2', 'cd-3');
+  }
+
+  // 正解時の全画面撃破アニメーション
+  function playWinAnimation(seat) {
+    try {
+      const ov = $('overlay');
+      const bn = document.querySelector('#overlay .banner');
+      // 文言
+      $('overlayTitle').textContent = '撃破!';
+      $('overlayDesc').textContent = seat === 'left' ? 'Left Wins!' : (seat === 'right' ? 'Right Wins!' : '');
+      // クラス設定（座席色）
+      ov.classList.add('win');
+      if (seat === 'left') ov.classList.add('win-left');
+      else if (seat === 'right') ov.classList.add('win-right');
+      if (bn) bn.classList.add('win');
+      // 表示
+      ov.style.display = 'flex';
+      // 少し長めに表示
+      setTimeout(hideOverlay, 1800);
+    } catch {
+      // フォールバック
+      showOverlay('Winner!', '');
+      setTimeout(hideOverlay, 1500);
+    }
+  }
 
   // 開始前カウントダウン（3,2,1）
   function runCountdown(sec = 3) {
@@ -195,7 +239,15 @@
     const rid = $('roomId').value.trim() || 'r1';
 
     socket.on('connect', () => {
-      socket.emit('ready', { roomId: rid, role: myRole || undefined });
+      socket.emit('ready', { roomId: rid, role: myRole || undefined, name: __qp.name || undefined });
+    });
+
+    // 参加状況・ユーザ名
+    socket.on('room_status', ({ ownerName, guestName }) => {
+      const ln = document.getElementById('leftName');
+      const rn = document.getElementById('rightName');
+      if (ln) ln.textContent = (ownerName && ownerName.trim()) ? ownerName : '-';
+      if (rn) rn.textContent = (guestName && guestName.trim()) ? guestName : '-';
     });
 
     socket.on('seat_assigned', async (p) => {
@@ -336,12 +388,9 @@
 
     // Quick Shell 結果イベントは廃止
 
-    // 勝者表示
+    // 勝者表示（全画面撃破アニメーション）
     socket.on('winner', ({ seat }) => {
-      const title = seat === 'left' ? 'Left Wins!' : seat === 'right' ? 'Right Wins!' : 'Winner!';
-      showOverlay(title, 'Next question will start shortly...');
-      // フェーズ遷移で自動的に閉じる
-      setTimeout(hideOverlay, 1500);
+      playWinAnimation(seat);
     });
 
     return socket;
@@ -374,7 +423,7 @@
   $('btnConnect').addEventListener('click', () => {
     ensureSocket();
     // 部屋変更にも対応
-    if (socket?.connected) socket.emit('ready', { roomId: $('roomId').value.trim() || 'r1', role: myRole || undefined });
+    if (socket?.connected) socket.emit('ready', { roomId: $('roomId').value.trim() || 'r1', role: myRole || undefined, name: __qp.name || undefined });
   });
 
   $('btnRandom').addEventListener('click', () => {
