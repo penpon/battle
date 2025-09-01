@@ -139,35 +139,15 @@
     <div class="battle">
       <div class="terminal card" id="leftPane">
         <h3>Left Terminal <span id="leftVerdict" class="verdict"></span></h3>
-        <div class="prompt">
-          <input id="leftInput" type="text" placeholder="type command..." />
-          <button id="leftSend">Send</button>
-        </div>
-        <div id="leftTyping" class="typing"></div>
         <div id="leftLog" class="log"></div>
         <!-- Interactive Terminal (Left) -->
-        <div class="row" style="margin-top:8px; gap:8px; align-items:center;">
-          <label style="min-width:auto;color:#93a3c7;font-size:12px;">Interactive</label>
-          <button id="leftTermStart">Start</button>
-          <button id="leftTermStop" class="ghost">Stop</button>
-        </div>
         <div id="leftTermOut" class="log" style="height:260px; padding:0; overflow:hidden;"></div>
         <div id="leftTermStatus" class="typing shell"></div>
       </div>
       <div class="terminal card" id="rightPane">
         <h3>Right Terminal <span id="rightVerdict" class="verdict"></span></h3>
-        <div class="prompt">
-          <input id="rightInput" type="text" placeholder="opponent typing..." />
-          <button id="rightSend" disabled>Send</button>
-        </div>
-        <div id="rightTyping" class="typing"></div>
         <div id="rightLog" class="log"></div>
         <!-- Interactive Terminal (Right) -->
-        <div class="row" style="margin-top:8px; gap:8px; align-items:center;">
-          <label style="min-width:auto;color:#93a3c7;font-size:12px;">Interactive</label>
-          <button id="rightTermStart">Start</button>
-          <button id="rightTermStop" class="ghost">Stop</button>
-        </div>
         <div id="rightTermOut" class="log" style="height:260px; padding:0; overflow:hidden;"></div>
         <div id="rightTermStatus" class="typing shell"></div>
       </div>
