@@ -59,6 +59,72 @@ export async function runInSandbox(opts: RunOptions) {
   }
 }
 
+export type InteractiveOptions = Omit<RunOptions, 'cmd' | 'timeoutMs'> & {
+  shellPathCandidates?: string[]; // default ['/bin/bash', '/bin/sh']
+};
+
+export type InteractiveSession = {
+  container: Docker.Container;
+  stream: NodeJS.ReadWriteStream;
+  workDir: string;
+};
+
+export async function startInteractiveShell(opts: InteractiveOptions): Promise<InteractiveSession> {
+  const docker = new Docker();
+  const workDir = opts.workDir || '/work';
+  const memory = opts.memoryLimitBytes || 256 * 1024 * 1024;
+  const pids = opts.pidsLimit || 128;
+  const shellCandidates = opts.shellPathCandidates || ['/bin/bash', '/bin/sh'];
+
+  const binds: string[] = [];
+  if (isDir(opts.scenarioDir)) {
+    binds.push(`${path.resolve(opts.scenarioDir!)}:/scenario:ro`);
+  }
+  if (opts.workHostDir) {
+    binds.push(`${path.resolve(opts.workHostDir)}:${workDir}:rw`);
+  }
+
+  // Pick first available shell (best-effort: assume exists)
+  const cmd = shellCandidates[0];
+
+  const container = await docker.createContainer({
+    Image: opts.image,
+    Cmd: [cmd],
+    WorkingDir: workDir,
+    AttachStdin: true,
+    AttachStdout: true,
+    AttachStderr: true,
+    Tty: true,
+    OpenStdin: true,
+    StdinOnce: false,
+    HostConfig: {
+      AutoRemove: true,
+      NetworkMode: 'none',
+      ReadonlyRootfs: false,
+      Binds: binds,
+      Tmpfs: opts.workHostDir ? undefined : { [workDir]: 'rw,mode=1777' },
+      CapDrop: ['ALL'],
+      Memory: memory,
+      PidsLimit: pids,
+    },
+  });
+
+  await container.start();
+  const stream = await container.attach({ stream: true, stdin: true, stdout: true, stderr: true });
+  return { container, stream, workDir };
+}
+
+export async function writeToInteractive(sess: InteractiveSession, data: string) {
+  sess.stream.write(data);
+}
+
+export async function stopInteractive(sess: InteractiveSession) {
+  try { await sess.container.kill({ signal: 'SIGHUP' }); } catch {}
+  try { await sess.container.stop({ t: 0 }); } catch {}
+  try { await sess.container.remove({ force: true }); } catch {}
+}
+
+
 function isDir(path: string | undefined): path is string {
   if (!path) return false;
   try {
