@@ -195,6 +195,34 @@ io.on('connection', (socket: Socket) => {
     } catch {}
   });
 
+  // タイピング中継（答え欄）
+  socket.on('typing', (payload: { roomId: string; text: string }) => {
+    try {
+      const { roomId, text } = payload as { roomId: string; text: string };
+      const seats = roomSeats.get(roomId);
+      if (!seats) return;
+      let seat: 'left' | 'right' | null = null;
+      if (seats.left === socket.id) seat = 'left';
+      else if (seats.right === socket.id) seat = 'right';
+      if (!seat) return; // 観戦者は無視
+      socket.to(roomId).emit('opponent_typing', { seat, text });
+    } catch {}
+  });
+
+  // タイピング中継（シェル欄）
+  socket.on('typing_shell', (payload: { roomId: string; text: string }) => {
+    try {
+      const { roomId, text } = payload as { roomId: string; text: string };
+      const seats = roomSeats.get(roomId);
+      if (!seats) return;
+      let seat: 'left' | 'right' | null = null;
+      if (seats.left === socket.id) seat = 'left';
+      else if (seats.right === socket.id) seat = 'right';
+      if (!seat) return; // 観戦者は無視
+      socket.to(roomId).emit('opponent_shell_typing', { seat, text });
+    } catch {}
+  });
+
   socket.on('submit_command', async (payload: { roomId: string; problemId: string; command: string }) => {
     let hostWorkDir: string | null = null;
     try {
@@ -370,6 +398,112 @@ io.on('connection', (socket: Socket) => {
       }
     }
   });
+  // 自由シェル実行（判定や勝敗に影響させない）
+  socket.on('shell_exec', async (payload: { roomId: string; command: string }) => {
+    let hostWorkDir: string | null = null;
+    try {
+      const { roomId, command } = (payload || {}) as { roomId?: string; command?: string };
+      if (!roomId || !command) {
+        socket.emit('shell_result', { stdout: '', stderr: 'bad_request', exitCode: 2 });
+        return;
+      }
+
+      const state = roomStates.get(roomId);
+      if (!state || state.phase !== 'question') {
+        socket.emit('shell_result', { stdout: '', stderr: 'not_in_question', exitCode: 125 });
+        return;
+      }
+      const problemId = state.problems[state.qIndex];
+
+      // 問題JSONを id で解決
+      const problemsDir = path.join(repoRoot, 'problems');
+      const entries = await fs.readdir(problemsDir);
+      let problemPath: string | null = null;
+      for (const name of entries) {
+        if (!name.endsWith('.json')) continue;
+        const full = path.join(problemsDir, name);
+        try {
+          const txt = await fs.readFile(full, 'utf8');
+          const obj = JSON.parse(txt);
+          if (obj && obj.id === problemId) { problemPath = full; break; }
+        } catch {}
+      }
+      if (!problemPath) {
+        socket.emit('shell_result', { stdout: '', stderr: 'problem_not_found', exitCode: 127 });
+        return;
+      }
+      const problem = JSON.parse(await fs.readFile(problemPath, 'utf8'));
+
+      // allowlist（最低限の安全策）。未設定時は difficulty から推定プリセットを適用
+      try {
+        const presetName = (problem?.allowlistPreset ?? null) as string | null;
+        const binsFromProblem = Array.isArray(problem?.allowlistBins) ? (problem.allowlistBins as string[]) : [];
+        let binsFromPreset: string[] = [];
+        if (presetName) {
+          const presetsPath = path.join(repoRoot, 'problems', '_allowlists.json');
+          try {
+            const txt = await fs.readFile(presetsPath, 'utf8');
+            const obj = JSON.parse(txt);
+            const p = obj?.presets?.[presetName];
+            if (Array.isArray(p)) binsFromPreset = p as string[];
+          } catch {}
+        }
+        let allowlist = Array.from(new Set([...(binsFromPreset || []), ...(binsFromProblem || [])]));
+
+        if (allowlist.length === 0 && typeof problem?.difficulty === 'string') {
+          const diff = String(problem.difficulty).toLowerCase();
+          const map: Record<string, string> = {
+            starter: 'starter_wide',
+            basic: 'basic_wide',
+            premium: 'premium_task',
+            pro: 'pro_task',
+          };
+          const inferred = map[diff];
+          if (inferred) {
+            const presetsPath = path.join(repoRoot, 'problems', '_allowlists.json');
+            try {
+              const txt = await fs.readFile(presetsPath, 'utf8');
+              const obj = JSON.parse(txt);
+              const p = obj?.presets?.[inferred];
+              if (Array.isArray(p)) allowlist = Array.from(new Set([...(p as string[]), ...allowlist]));
+            } catch {}
+          }
+        }
+        if (allowlist.length > 0) {
+          const bin = extractFirstExecutable(command);
+          if (bin && !allowlist.includes(bin)) {
+            socket.emit('shell_result', { stdout: '', stderr: `not allowed: ${bin}`, exitCode: 126 });
+            return;
+          }
+        }
+      } catch {}
+
+      // シナリオディレクトリ解決
+      let scenarioDir: string | undefined;
+      const files = problem?.prepare?.files as string | null | undefined; // 例: "scenarios/basic-01"
+      if (files) scenarioDir = path.join(repoRoot, files);
+
+      // ホスト一時 /work ディレクトリ（bind mount 用）
+      hostWorkDir = await fs.mkdtemp(path.join(os.tmpdir(), 'duel-work-'));
+
+      // Dockerで実行（判定・勝敗処理はしない）
+      const run = await runInSandbox({
+        image: problem?.prepare?.image || 'ubuntu:22.04',
+        cmd: command,
+        scenarioDir,
+        workHostDir: hostWorkDir,
+      });
+
+      socket.emit('shell_result', { stdout: run.stdout, stderr: run.stderr, exitCode: run.exitCode });
+    } catch {
+      socket.emit('shell_result', { stdout: '', stderr: 'internal_error', exitCode: 1 });
+    } finally {
+      if (hostWorkDir) {
+        try { await fs.rm(hostWorkDir, { recursive: true, force: true }); } catch {}
+      }
+    }
+  });
+
   socket.on('disconnect', () => {
     // 座席解放
     for (const [rid, seats] of roomSeats.entries()) {
