@@ -240,6 +240,22 @@ io.on('connection', (socket: Socket) => {
     if (hasOwner && hasGuest) {
       broadcast(rid, 'room_matched', { roomId: rid });
     }
+
+    // 遅延参加者向け: 現在のセット/フェーズを再送（個別）してUIを同期
+    try {
+      const state = roomStates.get(rid);
+      if (state) {
+        // ベースラインとして set_start を送る（カウンタ等を初期化）
+        socket.emit('set_start', { roomId: rid, difficulty: state.difficulty, problems: state.problems, total: state.problems.length });
+        if (state.phase === 'question') {
+          const pid = state.problems[state.qIndex];
+          const st = state.statements?.[pid];
+          socket.emit('question_start', { roomId: rid, problemId: pid, statement: st, index: state.qIndex, total: state.problems.length, sec: state.remainingSec });
+        } else if (state.phase === 'interval') {
+          socket.emit('interval_start', { roomId: rid, sec: state.remainingSec });
+        }
+      }
+    } catch {}
   });
 
   // --- インタラクティブシェル: 開始 ---
