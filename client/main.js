@@ -4,6 +4,45 @@
   let currentProblemId = null;
   let currentPhase = 'idle';
   let mySeat = '-'; // 'left' | 'right' | 'spectator'
+  // xterm instances
+  let leftTerm = null, rightTerm = null;
+  let leftFit = null, rightFit = null;
+
+  function ensureTerms() {
+    if (!leftTerm) {
+      leftTerm = new window.Terminal({ convertEol: true, cursorBlink: true, scrollback: 1000, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' });
+      leftFit = new window.FitAddon.FitAddon();
+      leftTerm.loadAddon(leftFit);
+      leftTerm.open($('leftTermOut'));
+      leftFit.fit();
+    }
+    if (!rightTerm) {
+      rightTerm = new window.Terminal({ convertEol: true, cursorBlink: true, scrollback: 1000, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' });
+      rightFit = new window.FitAddon.FitAddon();
+      rightTerm.loadAddon(rightFit);
+      rightTerm.open($('rightTermOut'));
+      rightFit.fit();
+    }
+    // 入力を即時送信（自席のみ）
+    if (!leftTerm._onDataHooked) {
+      leftTerm.onData((data) => {
+        if (mySeat === 'left' && socket && currentPhase === 'question') {
+          const roomId = $('roomId').value.trim() || 'r1';
+          socket.emit('shell_input', { roomId, data });
+        }
+      });
+      leftTerm._onDataHooked = true;
+    }
+    if (!rightTerm._onDataHooked) {
+      rightTerm.onData((data) => {
+        if (mySeat === 'right' && socket && currentPhase === 'question') {
+          const roomId = $('roomId').value.trim() || 'r1';
+          socket.emit('shell_input', { roomId, data });
+        }
+      });
+      rightTerm._onDataHooked = true;
+    }
+  }
 
   // 難易度ごとのプリセット（ここは既存ID方針に合わせる）
   const PRESETS = {
@@ -31,40 +70,28 @@
     // 自席のみ送信可能
     const leftSend = $('leftSend'); const rightSend = $('rightSend');
     const leftInput = $('leftInput'); const rightInput = $('rightInput');
-    const leftShellRun = $('leftShellRun'); const rightShellRun = $('rightShellRun');
-    const leftShellInput = $('leftShellInput'); const rightShellInput = $('rightShellInput');
+    // Quick Shell は削除済み
     // Interactive elements
     const leftTermStart = $('leftTermStart'); const rightTermStart = $('rightTermStart');
     const leftTermStop = $('leftTermStop'); const rightTermStop = $('rightTermStop');
-    const leftTermSend = $('leftTermSend'); const rightTermSend = $('rightTermSend');
-    const leftTermKey = $('leftTermKey'); const rightTermKey = $('rightTermKey');
     if (seat === 'left') {
       leftSend.disabled = false; rightSend.disabled = true;
       leftInput.placeholder = 'type command...'; rightInput.placeholder = 'opponent typing...';
-      leftShellRun.disabled = false; rightShellRun.disabled = true;
-      leftShellInput.placeholder = 'run command in scenario...'; rightShellInput.placeholder = 'opponent shell...';
+      // Quick Shell 廃止
       leftTermStart.disabled = false; rightTermStart.disabled = true;
       leftTermStop.disabled = true; rightTermStop.disabled = true;
-      leftTermSend.disabled = false; rightTermSend.disabled = true;
-      leftTermKey.placeholder = 'interactive input (Enter to send)'; rightTermKey.placeholder = 'opponent interactive...';
     } else if (seat === 'right') {
       leftSend.disabled = true; rightSend.disabled = false;
       leftInput.placeholder = 'opponent typing...'; rightInput.placeholder = 'type command...';
-      leftShellRun.disabled = true; rightShellRun.disabled = false;
-      leftShellInput.placeholder = 'opponent shell...'; rightShellInput.placeholder = 'run command in scenario...';
+      // Quick Shell 廃止
       leftTermStart.disabled = true; rightTermStart.disabled = false;
       leftTermStop.disabled = true; rightTermStop.disabled = true;
-      leftTermSend.disabled = true; rightTermSend.disabled = false;
-      leftTermKey.placeholder = 'opponent interactive...'; rightTermKey.placeholder = 'interactive input (Enter to send)';
     } else {
       leftSend.disabled = true; rightSend.disabled = true;
       leftInput.placeholder = 'spectator'; rightInput.placeholder = 'spectator';
-      leftShellRun.disabled = true; rightShellRun.disabled = true;
-      leftShellInput.placeholder = 'spectator'; rightShellInput.placeholder = 'spectator';
+      // Quick Shell 廃止
       leftTermStart.disabled = true; rightTermStart.disabled = true;
       leftTermStop.disabled = true; rightTermStop.disabled = true;
-      leftTermSend.disabled = true; rightTermSend.disabled = true;
-      leftTermKey.placeholder = 'spectator'; rightTermKey.placeholder = 'spectator';
     }
   }
   function setInputEnabled(enabled) {
@@ -76,30 +103,17 @@
     mineSend.disabled = !enabled || mySeat === 'spectator';
     oppInput.disabled = true; oppSend.disabled = true;
 
-    // Shell欄の有効/無効
-    const mineShellInput = mySeat === 'right' ? $('rightShellInput') : $('leftShellInput');
-    const mineShellRun = mySeat === 'right' ? $('rightShellRun') : $('leftShellRun');
-    const oppShellInput = mySeat === 'right' ? $('leftShellInput') : $('rightShellInput');
-    const oppShellRun = mySeat === 'right' ? $('leftShellRun') : $('rightShellRun');
-    mineShellInput.disabled = !enabled || mySeat === 'spectator';
-    mineShellRun.disabled = !enabled || mySeat === 'spectator';
-    oppShellInput.disabled = true; oppShellRun.disabled = true;
+    // Quick Shell 廃止
 
-    // Interactive欄の有効/無効
-    const mineTermKey = mySeat === 'right' ? $('rightTermKey') : $('leftTermKey');
-    const mineTermSend = mySeat === 'right' ? $('rightTermSend') : $('leftTermSend');
+    // Interactive欄の有効/無効（Startのみ）
     const mineTermStart = mySeat === 'right' ? $('rightTermStart') : $('leftTermStart');
     const mineTermStop = mySeat === 'right' ? $('rightTermStop') : $('leftTermStop');
-    const oppTermKey = mySeat === 'right' ? $('leftTermKey') : $('rightTermKey');
-    const oppTermSend = mySeat === 'right' ? $('leftTermSend') : $('rightTermSend');
     const oppTermStart = mySeat === 'right' ? $('leftTermStart') : $('rightTermStart');
     const oppTermStop = mySeat === 'right' ? $('leftTermStop') : $('rightTermStop');
-    mineTermKey.disabled = !enabled || mySeat === 'spectator';
-    mineTermSend.disabled = !enabled || mySeat === 'spectator';
     mineTermStart.disabled = !enabled || mySeat === 'spectator';
     // Stopは開始後のみ有効化するので、ここではフェーズでロック
     mineTermStop.disabled = true;
-    oppTermKey.disabled = true; oppTermSend.disabled = true; oppTermStart.disabled = true; oppTermStop.disabled = true;
+    oppTermStart.disabled = true; oppTermStop.disabled = true;
   }
   function clearLogs() {
     $('leftLog').textContent = '';
@@ -107,19 +121,14 @@
     $('leftVerdict').className = 'verdict'; $('leftVerdict').textContent = '';
     $('rightVerdict').className = 'verdict'; $('rightVerdict').textContent = '';
     $('leftTyping').textContent = ''; $('rightTyping').textContent = '';
-    // shell logs
-    $('leftShellLog').textContent = '';
-    $('rightShellLog').textContent = '';
-    // shell typing
-    const lst = document.getElementById('leftShellTyping'); if (lst) lst.textContent = '';
-    const rst = document.getElementById('rightShellTyping'); if (rst) rst.textContent = '';
+    // Quick Shell 関連なし
     // interactive logs
-    const lto = document.getElementById('leftTermOut'); if (lto) lto.textContent = '';
-    const rto = document.getElementById('rightTermOut'); if (rto) rto.textContent = '';
+    ensureTerms();
+    if (leftTerm) leftTerm.clear();
+    if (rightTerm) rightTerm.clear();
     const lts = document.getElementById('leftTermStatus'); if (lts) lts.textContent = '';
     const rts = document.getElementById('rightTermStatus'); if (rts) rts.textContent = '';
-    const ltk = document.getElementById('leftTermKey'); if (ltk) ltk.value = '';
-    const rtk = document.getElementById('rightTermKey'); if (rtk) rtk.value = '';
+    // 入力欄は廃止済み
   }
   function showOverlay(title, desc) {
     $('overlayTitle').textContent = title;
@@ -159,6 +168,7 @@
       setIndex(p.index, p.total);
       setRemain(p.sec);
       clearLogs(); hideOverlay();
+      ensureTerms();
       // 質問開始で自動的にインタラクティブシェルを起動
       startInteractive();
     });
@@ -192,9 +202,8 @@
       $('rightVerdict').className = `verdict ${badge}`; $('rightVerdict').textContent = v.ok ? 'OK' : 'NG';
     });
 
-    // --- Interactive shell events ---
+    // --- Interactive shell events (xterm連動) ---
     socket.on('shell_started', (r) => {
-      const mineOut = mySeat === 'right' ? $('rightTermOut') : $('leftTermOut');
       const mineStatus = mySeat === 'right' ? $('rightTermStatus') : $('leftTermStatus');
       const mineStart = mySeat === 'right' ? $('rightTermStart') : $('leftTermStart');
       const mineStop = mySeat === 'right' ? $('rightTermStop') : $('leftTermStop');
@@ -202,19 +211,21 @@
         mineStatus.textContent = 'started';
         mineStart.disabled = true; // started -> cannot start again
         mineStop.disabled = false; // allow stop
-        // send default resize
+        // 初期fit→resize送信
+        ensureTerms();
         const roomId = $('roomId').value.trim() || 'r1';
-        socket.emit('shell_resize', { roomId, cols: 100, rows: 28 });
+        if (mySeat === 'left') { leftFit.fit(); socket.emit('shell_resize', { roomId, cols: leftTerm.cols, rows: leftTerm.rows }); leftTerm.focus(); }
+        else if (mySeat === 'right') { rightFit.fit(); socket.emit('shell_resize', { roomId, cols: rightTerm.cols, rows: rightTerm.rows }); rightTerm.focus(); }
       } else {
         mineStatus.textContent = 'failed to start';
       }
-      if (mineOut && !mineOut.textContent) mineOut.textContent = '';
     });
 
     socket.on('shell_stream', (m) => {
       const data = (m && typeof m.data === 'string') ? m.data : '';
-      const mineOut = mySeat === 'right' ? $('rightTermOut') : $('leftTermOut');
-      if (mineOut) { mineOut.textContent += data; mineOut.scrollTop = mineOut.scrollHeight; }
+      ensureTerms();
+      if (mySeat === 'right' && rightTerm) rightTerm.write(data);
+      else if (mySeat === 'left' && leftTerm) leftTerm.write(data);
     });
 
     socket.on('shell_closed', (m) => {
@@ -229,18 +240,7 @@
       mineStop.disabled = true;
     });
 
-    // シェル実行結果（自分だけに返る）
-    socket.on('shell_result', (r) => {
-      const line = `[${new Date().toLocaleTimeString()}] exit=${r.exitCode}\nstdout:\n${r.stdout}\n---\nstderr:\n${r.stderr}\n`;
-      if (mySeat === 'right') {
-        $('rightShellLog').textContent += line; $('rightShellLog').scrollTop = $('rightShellLog').scrollHeight;
-      } else if (mySeat === 'left') {
-        $('leftShellLog').textContent += line; $('leftShellLog').scrollTop = $('leftShellLog').scrollHeight;
-      } else {
-        // spectator: 左に表示
-        $('leftShellLog').textContent += line; $('leftShellLog').scrollTop = $('leftShellLog').scrollHeight;
-      }
-    });
+    // Quick Shell 結果イベントは廃止
 
     // 勝者表示
     socket.on('winner', ({ seat }) => {
@@ -326,14 +326,7 @@
     socket.emit('submit_command', { roomId, problemId: pid, command: cmd });
   }
 
-  function runShell(fromSeat) {
-    if (!socket || currentPhase !== 'question') return;
-    const roomId = $('roomId').value.trim() || 'r1';
-    const input = fromSeat === 'right' ? $('rightShellInput') : $('leftShellInput');
-    const cmd = input.value.trim();
-    if (!cmd) return;
-    socket.emit('shell_exec', { roomId, command: cmd });
-  }
+  // Quick Shell は廃止
 
   // --- Interactive shell controls ---
   function startInteractive() {
@@ -346,33 +339,17 @@
     const roomId = $('roomId').value.trim() || 'r1';
     socket.emit('shell_stop_interactive', { roomId });
   }
-  function sendInteractiveInput(fromSeat) {
-    if (!socket || currentPhase !== 'question') return;
-    const roomId = $('roomId').value.trim() || 'r1';
-    const input = fromSeat === 'right' ? $('rightTermKey') : $('leftTermKey');
-    const text = input.value;
-    if (!text) return;
-    socket.emit('shell_input', { roomId, data: text.endsWith('\n') ? text : text + '\n' });
-    input.value = '';
-  }
 
   $('leftSend').addEventListener('click', () => { if (mySeat === 'left') sendCommand('left'); });
   $('rightSend').addEventListener('click', () => { if (mySeat === 'right') sendCommand('right'); });
 
-  $('leftShellRun').addEventListener('click', () => { if (mySeat === 'left') runShell('left'); });
-  $('rightShellRun').addEventListener('click', () => { if (mySeat === 'right') runShell('right'); });
+  // Quick Shell ボタンは削除済み
 
-  // Interactive: left
+  // Interactive buttons
   $('leftTermStart').addEventListener('click', () => { if (mySeat === 'left') startInteractive(); });
   $('leftTermStop').addEventListener('click', () => { if (mySeat === 'left') stopInteractive(); });
-  $('leftTermSend').addEventListener('click', () => { if (mySeat === 'left') sendInteractiveInput('left'); });
-  $('leftTermKey').addEventListener('keydown', (e) => { if (mySeat === 'left' && e.key === 'Enter') { e.preventDefault(); sendInteractiveInput('left'); } });
-
-  // Interactive: right
   $('rightTermStart').addEventListener('click', () => { if (mySeat === 'right') startInteractive(); });
   $('rightTermStop').addEventListener('click', () => { if (mySeat === 'right') stopInteractive(); });
-  $('rightTermSend').addEventListener('click', () => { if (mySeat === 'right') sendInteractiveInput('right'); });
-  $('rightTermKey').addEventListener('keydown', (e) => { if (mySeat === 'right' && e.key === 'Enter') { e.preventDefault(); sendInteractiveInput('right'); } });
 
   $('leftInput').addEventListener('input', (e) => {
     if (!socket) return;
@@ -387,17 +364,13 @@
     if (mySeat === 'right') socket.emit('typing', { roomId, text });
   });
 
-  // Shell typing relay
-  $('leftShellInput').addEventListener('input', (e) => {
+  // Quick Shell タイピング中継は廃止
+
+  // ウィンドウリサイズで端末をfit→resize通知
+  window.addEventListener('resize', () => {
     if (!socket) return;
     const roomId = $('roomId').value.trim() || 'r1';
-    const text = e.target.value;
-    if (mySeat === 'left') socket.emit('typing_shell', { roomId, text });
-  });
-  $('rightShellInput').addEventListener('input', (e) => {
-    if (!socket) return;
-    const roomId = $('roomId').value.trim() || 'r1';
-    const text = e.target.value;
-    if (mySeat === 'right') socket.emit('typing_shell', { roomId, text });
+    if (mySeat === 'left' && leftFit && leftTerm) { leftFit.fit(); socket.emit('shell_resize', { roomId, cols: leftTerm.cols, rows: leftTerm.rows }); }
+    else if (mySeat === 'right' && rightFit && rightTerm) { rightFit.fit(); socket.emit('shell_resize', { roomId, cols: rightTerm.cols, rows: rightTerm.rows }); }
   });
 })();

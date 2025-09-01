@@ -48,6 +48,9 @@
     .banner p { margin: 0; color:#c8d4ff; }
   </style>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" integrity="sha384-7b4x8tXoY5a4I9qN8m2bM+3g8m8yH3zM9oS2q0kLwqQGQHkE8As7oK0m0j5pZb1R" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
 </head>
 <body>
   <header>
@@ -101,24 +104,13 @@
         </div>
         <div id="leftTyping" class="typing"></div>
         <div id="leftLog" class="log"></div>
-        <div class="row" style="margin-top:8px;"><label style="min-width:auto;color:#93a3c7;font-size:12px;">Shell</label></div>
-        <div class="prompt">
-          <input id="leftShellInput" type="text" placeholder="run command in scenario..." />
-          <button id="leftShellRun">Run</button>
-        </div>
-        <div id="leftShellTyping" class="typing shell"></div>
-        <div id="leftShellLog" class="log"></div>
         <!-- Interactive Terminal (Left) -->
         <div class="row" style="margin-top:8px; gap:8px; align-items:center;">
           <label style="min-width:auto;color:#93a3c7;font-size:12px;">Interactive</label>
           <button id="leftTermStart">Start</button>
           <button id="leftTermStop" class="ghost">Stop</button>
         </div>
-        <div id="leftTermOut" class="log" style="height:220px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;"></div>
-        <div class="prompt">
-          <input id="leftTermKey" type="text" placeholder="interactive input (Enter to send)" />
-          <button id="leftTermSend">Send</button>
-        </div>
+        <div id="leftTermOut" class="log" style="height:260px; padding:0; overflow:hidden;"></div>
         <div id="leftTermStatus" class="typing shell"></div>
       </div>
       <div class="terminal card" id="rightPane">
@@ -129,24 +121,13 @@
         </div>
         <div id="rightTyping" class="typing"></div>
         <div id="rightLog" class="log"></div>
-        <div class="row" style="margin-top:8px;"><label style="min-width:auto;color:#93a3c7;font-size:12px;">Shell</label></div>
-        <div class="prompt">
-          <input id="rightShellInput" type="text" placeholder="run command in scenario..." />
-          <button id="rightShellRun" disabled>Run</button>
-        </div>
-        <div id="rightShellTyping" class="typing shell"></div>
-        <div id="rightShellLog" class="log"></div>
         <!-- Interactive Terminal (Right) -->
         <div class="row" style="margin-top:8px; gap:8px; align-items:center;">
           <label style="min-width:auto;color:#93a3c7;font-size:12px;">Interactive</label>
           <button id="rightTermStart">Start</button>
           <button id="rightTermStop" class="ghost">Stop</button>
         </div>
-        <div id="rightTermOut" class="log" style="height:220px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;"></div>
-        <div class="prompt">
-          <input id="rightTermKey" type="text" placeholder="interactive input (Enter to send)" />
-          <button id="rightTermSend">Send</button>
-        </div>
+        <div id="rightTermOut" class="log" style="height:260px; padding:0; overflow:hidden;"></div>
         <div id="rightTermStatus" class="typing shell"></div>
       </div>
     </div>
