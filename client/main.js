@@ -7,6 +7,8 @@
   // xterm instances
   let leftTerm = null, rightTerm = null;
   let leftFit = null, rightFit = null;
+  // 行バッファ（Enterでsubmit_commandに送る）
+  let leftLine = '', rightLine = '';
 
   // クエリパラメータ取得（owner/guest 遷移時に利用）
   function getQuery() {
@@ -18,15 +20,18 @@
         role: (sp.get('role') || '').toLowerCase(),
         difficulty: sp.get('difficulty') || '',
         problems: problemsStr ? problemsStr.split(',').filter(Boolean) : [],
+        auto: sp.get('auto') || '',
+        e2e: sp.get('e2e') || '',
       };
     } catch {
-      return { roomId: '', role: '', difficulty: '', problems: [] };
+      return { roomId: '', role: '', difficulty: '', problems: [], auto: '', e2e: '' };
     }
   }
   const __qp = getQuery();
   const myRole = (__qp.role === 'owner' || __qp.role === 'guest') ? __qp.role : '';
   let autoStartDone = false;
   let countdownDone = false;
+  const autoAnswerEnabled = (__qp.e2e === '1' || __qp.auto === '1');
 
   function ensureTerms() {
     if (!leftTerm) {
@@ -43,12 +48,30 @@
       rightTerm.open($('rightTermOut'));
       rightFit.fit();
     }
-    // 入力を即時送信（自席のみ）
+    // 入力を即時送信（自席のみ）＋ Enter で submit_command
     if (!leftTerm._onDataHooked) {
       leftTerm.onData((data) => {
         if (mySeat === 'left' && socket && currentPhase === 'question') {
           const roomId = $('roomId').value.trim() || 'r1';
           socket.emit('shell_input', { roomId, data });
+          // 行バッファ処理
+          for (const ch of data) {
+            const code = ch.charCodeAt(0);
+            if (ch === '\r' || ch === '\n') {
+              const cmd = leftLine.trim();
+              if (cmd) {
+                const pid = currentProblemId || 'starter-01';
+                socket.emit('submit_command', { roomId, problemId: pid, command: cmd });
+              }
+              leftLine = '';
+            } else if (ch === '\b' || code === 127) {
+              leftLine = leftLine.slice(0, -1);
+            } else if (code === 27) {
+              // ESC始まりは編集/カーソル移動として無視
+            } else if (code >= 32) {
+              leftLine += ch;
+            }
+          }
         }
       });
       leftTerm._onDataHooked = true;
@@ -58,6 +81,23 @@
         if (mySeat === 'right' && socket && currentPhase === 'question') {
           const roomId = $('roomId').value.trim() || 'r1';
           socket.emit('shell_input', { roomId, data });
+          for (const ch of data) {
+            const code = ch.charCodeAt(0);
+            if (ch === '\r' || ch === '\n') {
+              const cmd = rightLine.trim();
+              if (cmd) {
+                const pid = currentProblemId || 'starter-01';
+                socket.emit('submit_command', { roomId, problemId: pid, command: cmd });
+              }
+              rightLine = '';
+            } else if (ch === '\b' || code === 127) {
+              rightLine = rightLine.slice(0, -1);
+            } else if (code === 27) {
+              // ESC sequence -> ignore in buffer
+            } else if (code >= 32) {
+              rightLine += ch;
+            }
+          }
         }
       });
       rightTerm._onDataHooked = true;
@@ -87,60 +127,17 @@
   function setSeat(seat) {
     mySeat = seat;
     $('seat').textContent = seat;
-    // 自席のみ送信可能
-    const leftSend = $('leftSend'); const rightSend = $('rightSend');
-    const leftInput = $('leftInput'); const rightInput = $('rightInput');
-    // Quick Shell は削除済み
-    // Interactive elements
-    const leftTermStart = $('leftTermStart'); const rightTermStart = $('rightTermStart');
-    const leftTermStop = $('leftTermStop'); const rightTermStop = $('rightTermStop');
-    if (seat === 'left') {
-      leftSend.disabled = false; rightSend.disabled = true;
-      leftInput.placeholder = 'type command...'; rightInput.placeholder = 'opponent typing...';
-      // Quick Shell 廃止
-      leftTermStart.disabled = false; rightTermStart.disabled = true;
-      leftTermStop.disabled = true; rightTermStop.disabled = true;
-    } else if (seat === 'right') {
-      leftSend.disabled = true; rightSend.disabled = false;
-      leftInput.placeholder = 'opponent typing...'; rightInput.placeholder = 'type command...';
-      // Quick Shell 廃止
-      leftTermStart.disabled = true; rightTermStart.disabled = false;
-      leftTermStop.disabled = true; rightTermStop.disabled = true;
-    } else {
-      leftSend.disabled = true; rightSend.disabled = true;
-      leftInput.placeholder = 'spectator'; rightInput.placeholder = 'spectator';
-      // Quick Shell 廃止
-      leftTermStart.disabled = true; rightTermStart.disabled = true;
-      leftTermStop.disabled = true; rightTermStop.disabled = true;
-    }
   }
   function setInputEnabled(enabled) {
-    const mineInput = mySeat === 'right' ? $('rightInput') : $('leftInput');
-    const mineSend = mySeat === 'right' ? $('rightSend') : $('leftSend');
-    const oppInput = mySeat === 'right' ? $('leftInput') : $('rightInput');
-    const oppSend = mySeat === 'right' ? $('leftSend') : $('rightSend');
-    mineInput.disabled = !enabled || mySeat === 'spectator';
-    mineSend.disabled = !enabled || mySeat === 'spectator';
-    oppInput.disabled = true; oppSend.disabled = true;
-
-    // Quick Shell 廃止
-
-    // Interactive欄の有効/無効（Startのみ）
-    const mineTermStart = mySeat === 'right' ? $('rightTermStart') : $('leftTermStart');
-    const mineTermStop = mySeat === 'right' ? $('rightTermStop') : $('leftTermStop');
-    const oppTermStart = mySeat === 'right' ? $('leftTermStart') : $('rightTermStart');
-    const oppTermStop = mySeat === 'right' ? $('leftTermStop') : $('rightTermStop');
-    mineTermStart.disabled = !enabled || mySeat === 'spectator';
-    // Stopは開始後のみ有効化するので、ここではフェーズでロック
-    mineTermStop.disabled = true;
-    oppTermStart.disabled = true; oppTermStop.disabled = true;
+    // 送信欄/ボタンは廃止。インタラクティブは常時有効（question中）。
   }
   function clearLogs() {
     $('leftLog').textContent = '';
     $('rightLog').textContent = '';
     $('leftVerdict').className = 'verdict'; $('leftVerdict').textContent = '';
     $('rightVerdict').className = 'verdict'; $('rightVerdict').textContent = '';
-    $('leftTyping').textContent = ''; $('rightTyping').textContent = '';
+    const lt = $('leftTyping'); if (lt) lt.textContent = '';
+    const rt = $('rightTyping'); if (rt) rt.textContent = '';
     // Quick Shell 関連なし
     // interactive logs
     ensureTerms();
@@ -230,7 +227,7 @@
       setPhase('question');
       clearLogs(); hideOverlay();
     });
-    socket.on('set_end', () => { setPhase('idle'); hideOverlay(); stopInteractive(); });
+    socket.on('set_end', () => { setPhase('idle'); hideOverlay(); stopInteractive(); if (autoAnswerEnabled) { const m='[E2E] set_end reached\n'; $('leftLog').textContent += m; $('rightLog').textContent += m; } });
     socket.on('set_cancelled', () => { setPhase('idle'); hideOverlay(); stopInteractive(); });
 
     socket.on('question_start', (p) => {
@@ -243,16 +240,34 @@
       ensureTerms();
       // 質問開始で自動的にインタラクティブシェルを起動
       startInteractive();
+      // E2E自動解答（Starter 5問用）
+      try {
+        if (autoAnswerEnabled && mySeat === 'right') {
+          const answers = {
+            'starter-01': 'pwd',
+            'starter-02': 'ls',
+            'starter-03': 'date',
+            'starter-04': 'echo Linux',
+            'starter-05': 'mkdir testdir',
+          };
+          const cmd = answers[p.problemId];
+          if (cmd) {
+            const roomId = $('roomId').value.trim() || 'r1';
+            setTimeout(() => { socket.emit('submit_command', { roomId, problemId: p.problemId, command: cmd }); }, 200);
+          }
+        }
+      } catch {}
     });
     socket.on('question_end', () => { setPhase('interval'); stopInteractive(); });
     socket.on('interval_start', (p) => { setPhase('interval'); setRemain(p.sec); stopInteractive(); });
     socket.on('interval_end', () => { /* no-op */ });
     socket.on('timer_tick', (p) => { setRemain(p.remainingSec); });
 
-    // タイピング中継
+    // タイピング中継（廃止UIのためオプショナル処理）
     socket.on('opponent_typing', ({ seat, text }) => {
-      if (seat === 'left') $('leftTyping').textContent = text;
-      else if (seat === 'right') $('rightTyping').textContent = text;
+      const lt = $('leftTyping'); const rt = $('rightTyping');
+      if (seat === 'left' && lt) lt.textContent = text;
+      else if (seat === 'right' && rt) rt.textContent = text;
     });
 
     // シェル欄のタイピング中継
@@ -272,44 +287,51 @@
       const badge = v.ok ? 'v-ok' : 'v-ng';
       $('leftVerdict').className = `verdict ${badge}`; $('leftVerdict').textContent = v.ok ? 'OK' : 'NG';
       $('rightVerdict').className = `verdict ${badge}`; $('rightVerdict').textContent = v.ok ? 'OK' : 'NG';
+      if (autoAnswerEnabled) {
+        const mark = `[E2E] verdict ${v.problemId || ''}: ${v.ok ? 'OK' : 'NG'}\n`;
+        $('leftLog').textContent += mark; $('rightLog').textContent += mark;
+      }
     });
 
     // --- Interactive shell events (xterm連動) ---
     socket.on('shell_started', (r) => {
-      const mineStatus = mySeat === 'right' ? $('rightTermStatus') : $('leftTermStatus');
-      const mineStart = mySeat === 'right' ? $('rightTermStart') : $('leftTermStart');
-      const mineStop = mySeat === 'right' ? $('rightTermStop') : $('leftTermStop');
+      const seat = r?.seat;
+      const lts = document.getElementById('leftTermStatus');
+      const rts = document.getElementById('rightTermStatus');
       if (r && r.ok) {
-        mineStatus.textContent = 'started';
-        mineStart.disabled = true; // started -> cannot start again
-        mineStop.disabled = false; // allow stop
-        // 初期fit→resize送信
+        if (seat === 'left' && lts) lts.textContent = 'started';
+        else if (seat === 'right' && rts) rts.textContent = 'started';
+        // 初期fit→resize送信（自席のみ）
         ensureTerms();
         const roomId = $('roomId').value.trim() || 'r1';
         if (mySeat === 'left') { leftFit.fit(); socket.emit('shell_resize', { roomId, cols: leftTerm.cols, rows: leftTerm.rows }); leftTerm.focus(); }
         else if (mySeat === 'right') { rightFit.fit(); socket.emit('shell_resize', { roomId, cols: rightTerm.cols, rows: rightTerm.rows }); rightTerm.focus(); }
       } else {
-        mineStatus.textContent = 'failed to start';
+        if (seat === 'left' && lts) lts.textContent = 'failed to start';
+        else if (seat === 'right' && rts) rts.textContent = 'failed to start';
       }
     });
 
     socket.on('shell_stream', (m) => {
       const data = (m && typeof m.data === 'string') ? m.data : '';
+      const seat = m?.seat;
       ensureTerms();
-      if (mySeat === 'right' && rightTerm) rightTerm.write(data);
-      else if (mySeat === 'left' && leftTerm) leftTerm.write(data);
+      if (seat === 'left' && leftTerm) leftTerm.write(data);
+      else if (seat === 'right' && rightTerm) rightTerm.write(data);
+      else {
+        // 予備: 座席不明時は自席へ
+        if (mySeat === 'left' && leftTerm) leftTerm.write(data);
+        else if (mySeat === 'right' && rightTerm) rightTerm.write(data);
+      }
     });
 
     socket.on('shell_closed', (m) => {
       const reason = m?.reason || 'closed';
-      const mineStatus = mySeat === 'right' ? $('rightTermStatus') : $('leftTermStatus');
-      const mineStart = mySeat === 'right' ? $('rightTermStart') : $('leftTermStart');
-      const mineStop = mySeat === 'right' ? $('rightTermStop') : $('leftTermStop');
-      mineStatus.textContent = `closed: ${reason}`;
-      // allow re-start in question phase
-      const canEnable = currentPhase === 'question' && mySeat !== 'spectator';
-      mineStart.disabled = !canEnable;
-      mineStop.disabled = true;
+      const seat = m?.seat;
+      const lts = document.getElementById('leftTermStatus');
+      const rts = document.getElementById('rightTermStatus');
+      if (seat === 'left' && lts) lts.textContent = `closed: ${reason}`;
+      else if (seat === 'right' && rts) rts.textContent = `closed: ${reason}`;
     });
 
     // Quick Shell 結果イベントは廃止
@@ -416,15 +438,7 @@
     socket.emit('set_cancel', { roomId });
   });
 
-  function sendCommand(fromSeat) {
-    if (!socket || currentPhase !== 'question') return;
-    const roomId = $('roomId').value.trim() || 'r1';
-    const input = fromSeat === 'right' ? $('rightInput') : $('leftInput');
-    const cmd = input.value.trim();
-    if (!cmd) return;
-    const pid = currentProblemId || 'starter-01';
-    socket.emit('submit_command', { roomId, problemId: pid, command: cmd });
-  }
+  // 送信欄は廃止（Enterで送信）
 
   // Quick Shell は廃止
 
@@ -439,30 +453,7 @@
     const roomId = $('roomId').value.trim() || 'r1';
     socket.emit('shell_stop_interactive', { roomId });
   }
-
-  $('leftSend').addEventListener('click', () => { if (mySeat === 'left') sendCommand('left'); });
-  $('rightSend').addEventListener('click', () => { if (mySeat === 'right') sendCommand('right'); });
-
-  // Quick Shell ボタンは削除済み
-
-  // Interactive buttons
-  $('leftTermStart').addEventListener('click', () => { if (mySeat === 'left') startInteractive(); });
-  $('leftTermStop').addEventListener('click', () => { if (mySeat === 'left') stopInteractive(); });
-  $('rightTermStart').addEventListener('click', () => { if (mySeat === 'right') startInteractive(); });
-  $('rightTermStop').addEventListener('click', () => { if (mySeat === 'right') stopInteractive(); });
-
-  $('leftInput').addEventListener('input', (e) => {
-    if (!socket) return;
-    const roomId = $('roomId').value.trim() || 'r1';
-    const text = e.target.value;
-    if (mySeat === 'left') socket.emit('typing', { roomId, text });
-  });
-  $('rightInput').addEventListener('input', (e) => {
-    if (!socket) return;
-    const roomId = $('roomId').value.trim() || 'r1';
-    const text = e.target.value;
-    if (mySeat === 'right') socket.emit('typing', { roomId, text });
-  });
+  // UIボタン/入力欄は廃止
 
   // Quick Shell タイピング中継は廃止
 
