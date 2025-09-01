@@ -477,67 +477,9 @@ io.on('connection', (socket: Socket) => {
       }
       const problem = JSON.parse(await fs.readFile(problemPath, 'utf8'));
 
-      // 2-a) allowlist プリセットと個別リストの適用（任意）。
-      //      未指定でも difficulty に応じたデフォルトプリセットを補完（既定セーフティ）。
-      try {
-        const presetName = (problem?.allowlistPreset ?? null) as string | null;
-        const binsFromProblem = Array.isArray(problem?.allowlistBins) ? (problem.allowlistBins as string[]) : [];
-        let binsFromPreset: string[] = [];
-        if (presetName) {
-          const presetsPath = path.join(repoRoot, 'problems', '_allowlists.json');
-          try {
-            const txt = await fs.readFile(presetsPath, 'utf8');
-            const obj = JSON.parse(txt);
-            const p = obj?.presets?.[presetName];
-            if (Array.isArray(p)) binsFromPreset = p as string[];
-          } catch {}
-        }
-        let allowlist = Array.from(new Set([...(binsFromPreset || []), ...(binsFromProblem || [])]));
+      // [Allowlist Disabled] すべてのコマンドを許可するため、allowlist/プリセットの適用をスキップ
 
-        // デフォルト補完: difficulty があり、allowlist が空の場合、難易度に応じたプリセットを適用
-        if (allowlist.length === 0 && typeof problem?.difficulty === 'string') {
-          const diff = String(problem.difficulty).toLowerCase();
-          const map: Record<string, string> = {
-            starter: 'starter_wide',
-            basic: 'basic_wide',
-            premium: 'premium_task',
-            pro: 'pro_task',
-          };
-          const inferred = map[diff];
-          if (inferred) {
-            const presetsPath = path.join(repoRoot, 'problems', '_allowlists.json');
-            try {
-              const txt = await fs.readFile(presetsPath, 'utf8');
-              const obj = JSON.parse(txt);
-              const p = obj?.presets?.[inferred];
-              if (Array.isArray(p)) allowlist = Array.from(new Set([...(p as string[]), ...allowlist]));
-            } catch {}
-          }
-        }
-        if (allowlist.length > 0) {
-          const bin = extractFirstExecutable(command);
-          if (bin && !allowlist.includes(bin)) {
-            const out = { problemId, ok: false, reason: 'bin_not_allowed', stdout: '', stderr: `not allowed: ${bin}`, exitCode: 126 };
-            socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
-            return;
-          }
-        }
-      } catch {}
-
-      // 2) Regex Judge（穴埋め問題向け）
-      const regexCfg = problem?.validators?.regex as { allow?: string[]; deny?: string[] } | null | undefined;
-      if (regexCfg) {
-        const policy: RegexJudge = {
-          allow: regexCfg.allow?.map((s) => new RegExp(s)),
-          deny: regexCfg.deny?.map((s) => new RegExp(s)),
-        };
-        const r = judgeByRegex(command, policy);
-        if (!r.pass) {
-          const out = { problemId, ok: false, reason: `regex_${r.reason ?? 'fail'}`, stdout: '', stderr: `regex_${r.reason ?? 'fail'}`, exitCode: 2 };
-          socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
-          return;
-        }
-      }
+      // [Regex Judge Disabled] 正規表現によるコマンド検証をスキップ
 
       // 3) シナリオディレクトリ解決
       let scenarioDir: string | undefined;
