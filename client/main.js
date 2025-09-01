@@ -25,6 +25,8 @@
   }
   const __qp = getQuery();
   const myRole = (__qp.role === 'owner' || __qp.role === 'guest') ? __qp.role : '';
+  let autoStartDone = false;
+  let countdownDone = false;
 
   function ensureTerms() {
     if (!leftTerm) {
@@ -155,6 +157,40 @@
   }
   function hideOverlay() { $('overlay').style.display = 'none'; }
 
+  // 開始前カウントダウン（3,2,1）
+  function runCountdown(sec = 3) {
+    return new Promise((resolve) => {
+      try {
+        let t = Math.max(1, Math.floor(sec));
+        const overlayEl = $('overlay');
+        const bannerEl = document.querySelector('#overlay .banner');
+        const tick = () => {
+          // 表示とクラス更新
+          showOverlay(String(t), '');
+          if (bannerEl) {
+            bannerEl.classList.add('countdown');
+            bannerEl.classList.remove('cd-1','cd-2','cd-3');
+            bannerEl.classList.add(`cd-${t}`);
+          }
+          if (t <= 1) {
+            setTimeout(() => {
+              // 片付け
+              if (bannerEl) {
+                bannerEl.classList.remove('countdown','cd-1','cd-2','cd-3');
+              }
+              hideOverlay();
+              resolve();
+            }, 700);
+          } else {
+            t -= 1;
+            setTimeout(tick, 1000);
+          }
+        };
+        tick();
+      } catch { resolve(); }
+    });
+  }
+
   // 接続処理（同一オリジン）
   function ensureSocket() {
     if (socket) return socket;
@@ -165,8 +201,27 @@
       socket.emit('ready', { roomId: rid, role: myRole || undefined });
     });
 
-    socket.on('seat_assigned', (p) => {
+    socket.on('seat_assigned', async (p) => {
       setSeat(p.seat);
+      // カウントダウンは一度だけ
+      if (!countdownDone && myRole) {
+        countdownDone = true;
+        await runCountdown(3);
+      }
+      // オートスタート: オーナーかつクエリ指定がある/補完可能な場合に一度だけ開始（カウントダウン後）
+      try {
+        if (!autoStartDone && myRole === 'owner') {
+          const roomId = (__qp.roomId || $('roomId').value.trim() || 'r1');
+          let difficulty = __qp.difficulty || $('difficulty').value;
+          let problems = Array.isArray(__qp.problems) && __qp.problems.length > 0
+            ? __qp.problems
+            : (PRESETS[difficulty] || PRESETS['Starter'] || []).slice(0, 5);
+          if (problems.length > 0) {
+            autoStartDone = true;
+            socket.emit('set_start', { roomId, difficulty, problems });
+          }
+        }
+      } catch {}
     });
 
     // セット/フェーズ関連
@@ -328,6 +383,11 @@
   if (myRole && myRole !== 'owner') {
     $('btnStart').disabled = true;
     $('btnCancel').disabled = true;
+  }
+  // ロビー遷移（role付き）の場合は上部コントロールを非表示
+  if (myRole) {
+    const controls = document.querySelector('.controls');
+    if (controls) controls.style.display = 'none';
   }
 
   // クエリに roomId と role があれば自動接続
