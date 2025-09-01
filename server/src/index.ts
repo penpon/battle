@@ -34,8 +34,8 @@ interface RoomState {
 }
 const roomStates = new Map<string, RoomState>();
 
-// 左右席の管理: roomId -> { left?: socketId, right?: socketId }
-const roomSeats = new Map<string, { left?: string; right?: string }>();
+// 左右席の管理: roomId -> { left?: socketId, right?: socketId, leftName?: string, rightName?: string }
+const roomSeats = new Map<string, { left?: string; right?: string; leftName?: string; rightName?: string }>();
 
 // インタラクティブシェルセッション: socket.id 単位で保持
 const interactiveSessions = new Map<string, {
@@ -204,7 +204,7 @@ function extractFirstExecutable(command: string): string | null {
 
 io.on('connection', (socket: Socket) => {
   // 自動入室と座席割当（デフォルト roomId=r1）
-  socket.on('ready', ({ roomId, role }: { roomId?: string; role?: string } = {}) => {
+  socket.on('ready', ({ roomId, role, name }: { roomId?: string; role?: string; name?: string } = {}) => {
     const rid = roomId || 'r1';
     socket.join(rid);
     let seats = roomSeats.get(rid) || {};
@@ -213,18 +213,22 @@ io.on('connection', (socket: Socket) => {
     if (r === 'owner') {
       if (!seats.left) {
         seats.left = socket.id;
+        if (typeof name === 'string') seats.leftName = name;
         socket.emit('seat_assigned', { roomId: rid, seat: 'left' });
       } else if (seats.left === socket.id) {
         socket.emit('seat_assigned', { roomId: rid, seat: 'left' });
+        if (typeof name === 'string') seats.leftName = name;
       } else {
         socket.emit('seat_assigned', { roomId: rid, seat: 'spectator' });
       }
     } else if (r === 'guest') {
       if (!seats.right) {
         seats.right = socket.id;
+        if (typeof name === 'string') seats.rightName = name;
         socket.emit('seat_assigned', { roomId: rid, seat: 'right' });
       } else if (seats.right === socket.id) {
         socket.emit('seat_assigned', { roomId: rid, seat: 'right' });
+        if (typeof name === 'string') seats.rightName = name;
       } else {
         socket.emit('seat_assigned', { roomId: rid, seat: 'spectator' });
       }
@@ -244,7 +248,9 @@ io.on('connection', (socket: Socket) => {
 
     const hasOwner = !!seats.left;
     const hasGuest = !!seats.right;
-    broadcast(rid, 'room_status', { roomId: rid, hasOwner, hasGuest });
+    const ownerName = seats.leftName || null;
+    const guestName = seats.rightName || null;
+    broadcast(rid, 'room_status', { roomId: rid, hasOwner, hasGuest, ownerName, guestName });
     if (hasOwner && hasGuest) {
       broadcast(rid, 'room_matched', { roomId: rid });
     }
@@ -706,12 +712,13 @@ io.on('connection', (socket: Socket) => {
     // 座席解放と room_status 更新
     for (const [rid, seats] of roomSeats.entries()) {
       let changed = false;
-      if (seats.left === socket.id) { seats.left = undefined; changed = true; }
-      if (seats.right === socket.id) { seats.right = undefined; changed = true; }
+      if (seats.left === socket.id) { seats.left = undefined; seats.leftName = undefined; changed = true; }
+      if (seats.right === socket.id) { seats.right = undefined; seats.rightName = undefined; changed = true; }
       if (changed) {
         roomSeats.set(rid, seats);
         const hasOwner = !!seats.left; const hasGuest = !!seats.right;
-        broadcast(rid, 'room_status', { roomId: rid, hasOwner, hasGuest });
+        const ownerName = seats.leftName || null; const guestName = seats.rightName || null;
+        broadcast(rid, 'room_status', { roomId: rid, hasOwner, hasGuest, ownerName, guestName });
       }
     }
     // インタラクティブセッションをクリーンアップ
