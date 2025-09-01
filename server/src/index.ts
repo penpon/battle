@@ -3,7 +3,7 @@ import { Server as IOServer, type Socket } from 'socket.io';
 import path from 'path';
 import fs from 'fs/promises';
 import os from 'os';
-import { runInSandbox } from './dockerRunner.js';
+import { runInSandbox, startInteractiveShell, writeToInteractive, stopInteractive, type InteractiveSession } from './dockerRunner.js';
 import { judgeByRegex, type RegexJudge, type ExecResult, type FS as JudgeFS } from './judge.js';
 import { pathToFileURL, fileURLToPath } from 'url';
 import fastifyStatic from '@fastify/static';
@@ -37,6 +37,41 @@ const roomStates = new Map<string, RoomState>();
 // 左右席の管理: roomId -> { left?: socketId, right?: socketId }
 const roomSeats = new Map<string, { left?: string; right?: string }>();
 
+// インタラクティブシェルセッション: socket.id 単位で保持
+const interactiveSessions = new Map<string, {
+  sess: InteractiveSession;
+  hostWorkDir?: string;
+  roomId: string;
+  problemId: string;
+  onData: (chunk: Buffer) => void;
+  idleTimer?: NodeJS.Timeout;
+  hardTimer?: NodeJS.Timeout;
+}>();
+
+// タイムアウト設定とクリーンアップヘルパ
+const INTERACTIVE_IDLE_MS = 30000; // 入力・出力が無い場合のアイドルタイムアウト
+const INTERACTIVE_HARD_MS = 95000; // 絶対タイムアウト（問題90秒をやや超過で保険）
+
+async function closeInteractiveSession(socketId: string, reason?: string) {
+  const s = interactiveSessions.get(socketId);
+  if (!s) return;
+  try { if (s.idleTimer) clearTimeout(s.idleTimer); } catch {}
+  try { if (s.hardTimer) clearTimeout(s.hardTimer); } catch {}
+  try { s.sess.stream.off('data', s.onData); } catch {}
+  try { await stopInteractive(s.sess); } catch {}
+  interactiveSessions.delete(socketId);
+  if (s.hostWorkDir) { try { await fs.rm(s.hostWorkDir, { recursive: true, force: true }); } catch {} }
+  const sock = io.sockets.sockets.get(socketId);
+  try { sock?.emit('shell_closed', { ok: true, reason: reason || 'closed' }); } catch {}
+}
+
+async function closeRoomInteractiveSessions(roomId: string, reason?: string) {
+  const entries = Array.from(interactiveSessions.entries()).filter(([, v]) => v.roomId === roomId);
+  for (const [sid] of entries) {
+    await closeInteractiveSession(sid, reason);
+  }
+}
+
 function clearRoomTimer(state: RoomState) {
   if (state.timer) { clearInterval(state.timer); state.timer = undefined; }
 }
@@ -47,6 +82,9 @@ function broadcast(roomId: string, ev: string, payload: any) {
 
 function startIntervalPhase(roomId: string, state: RoomState, sec: number) {
   state.phase = 'interval';
+  // フェーズ遷移時は部屋のインタラクティブセッションを終了
+  // 非同期で実行し、フェーズ管理の進行は阻害しない
+  void closeRoomInteractiveSessions(roomId, 'phase_change');
   state.remainingSec = sec;
   broadcast(roomId, 'interval_start', { roomId, sec });
   clearRoomTimer(state);
@@ -61,6 +99,8 @@ function startIntervalPhase(roomId: string, state: RoomState, sec: number) {
       if (state.qIndex >= state.problems.length) {
         state.phase = 'idle';
         broadcast(roomId, 'set_end', { roomId });
+        // セット終了時の最終クリーンアップ
+        void closeRoomInteractiveSessions(roomId, 'set_end');
         roomStates.delete(roomId);
       } else {
         startQuestionPhase(roomId, state, 90);
@@ -173,6 +213,122 @@ io.on('connection', (socket: Socket) => {
     roomSeats.set(rid, seats);
   });
 
+  // --- インタラクティブシェル: 開始 ---
+  socket.on('shell_start_interactive', async (payload: { roomId: string }) => {
+    let hostWorkDir: string | null = null;
+    try {
+      const { roomId } = (payload || {}) as { roomId?: string };
+      if (!roomId) return;
+
+      // 既存セッションがあれば無視（あるいは再利用）
+      if (interactiveSessions.has(socket.id)) {
+        socket.emit('shell_started', { ok: true });
+        return;
+      }
+
+      const state = roomStates.get(roomId);
+      if (!state || state.phase !== 'question') {
+        socket.emit('shell_stream', { data: '\n[not_in_question]\n' });
+        return;
+      }
+      const problemId = state.problems[state.qIndex];
+
+      // 問題JSONを解決
+      const problemsDir = path.join(repoRoot, 'problems');
+      const entries = await fs.readdir(problemsDir);
+      let problemPath: string | null = null;
+      for (const name of entries) {
+        if (!name.endsWith('.json')) continue;
+        const full = path.join(problemsDir, name);
+        try {
+          const txt = await fs.readFile(full, 'utf8');
+          const obj = JSON.parse(txt);
+          if (obj && obj.id === problemId) { problemPath = full; break; }
+        } catch {}
+      }
+      if (!problemPath) {
+        socket.emit('shell_stream', { data: '\n[problem_not_found]\n' });
+        return;
+      }
+      const problem = JSON.parse(await fs.readFile(problemPath, 'utf8'));
+
+      // シナリオ/ワークの準備
+      let scenarioDir: string | undefined;
+      const files = problem?.prepare?.files as string | null | undefined; // 例: "scenarios/basic-01"
+      if (files) scenarioDir = path.join(repoRoot, files);
+      hostWorkDir = await fs.mkdtemp(path.join(os.tmpdir(), 'duel-work-'));
+
+      // コンテナ起動（TTY）
+      const sess = await startInteractiveShell({
+        image: problem?.prepare?.image || 'ubuntu:22.04',
+        scenarioDir,
+        workHostDir: hostWorkDir,
+      });
+
+      // 出力ストリーム転送（現時点では本人にのみ送信）
+      const onData = (chunk: Buffer) => {
+        try { socket.emit('shell_stream', { data: chunk.toString('utf8') }); } catch {}
+        // アイドルタイマーをリセット
+        try {
+          const rec = interactiveSessions.get(socket.id);
+          if (rec) {
+            if (rec.idleTimer) clearTimeout(rec.idleTimer);
+            rec.idleTimer = setTimeout(() => { void closeInteractiveSession(socket.id, 'idle_timeout'); }, INTERACTIVE_IDLE_MS);
+          }
+        } catch {}
+      };
+      sess.stream.on('data', onData);
+      // セッション登録とタイムアウト設定
+      const rec = { sess, hostWorkDir: hostWorkDir || undefined, roomId, problemId, onData } as any;
+      rec.idleTimer = setTimeout(() => { void closeInteractiveSession(socket.id, 'idle_timeout'); }, INTERACTIVE_IDLE_MS);
+      rec.hardTimer = setTimeout(() => { void closeInteractiveSession(socket.id, 'hard_timeout'); }, INTERACTIVE_HARD_MS);
+      interactiveSessions.set(socket.id, rec);
+      socket.emit('shell_started', { ok: true });
+    } catch {
+      socket.emit('shell_started', { ok: false });
+      if (hostWorkDir) { try { await fs.rm(hostWorkDir, { recursive: true, force: true }); } catch {} }
+    }
+  });
+
+  // --- インタラクティブシェル: 入力 ---
+  socket.on('shell_input', async (payload: { roomId: string; data: string }) => {
+    try {
+      const { roomId, data } = (payload || {}) as { roomId?: string; data?: string };
+      if (!roomId || typeof data !== 'string') return;
+      const s = interactiveSessions.get(socket.id);
+      if (!s || s.roomId !== roomId) return;
+      await writeToInteractive(s.sess, data);
+      // 入力があればアイドルタイマーをリセット
+      try {
+        if (s.idleTimer) clearTimeout(s.idleTimer);
+        s.idleTimer = setTimeout(() => { void closeInteractiveSession(socket.id, 'idle_timeout'); }, INTERACTIVE_IDLE_MS);
+      } catch {}
+    } catch {}
+  });
+
+  // --- インタラクティブシェル: 端末サイズ変更 ---
+  socket.on('shell_resize', async (payload: { roomId: string; cols: number; rows: number }) => {
+    try {
+      const { roomId, cols, rows } = (payload || {}) as { roomId?: string; cols?: number; rows?: number };
+      if (!roomId || !Number.isFinite(cols) || !Number.isFinite(rows)) return;
+      const s = interactiveSessions.get(socket.id);
+      if (!s || s.roomId !== roomId) return;
+      try { await s.sess.container.resize({ w: Math.max(1, Math.floor(cols!)), h: Math.max(1, Math.floor(rows!)) }); } catch {}
+    } catch {}
+  });
+
+  // --- インタラクティブシェル: 停止 ---
+  socket.on('shell_stop_interactive', async (payload: { roomId: string }) => {
+    try {
+      const { roomId } = (payload || {}) as { roomId?: string };
+      const s = interactiveSessions.get(socket.id);
+      if (!s || (roomId && s.roomId !== roomId)) return;
+      await closeInteractiveSession(socket.id, 'user_stop');
+    } catch {
+      socket.emit('shell_closed', { ok: false });
+    }
+  });
+
   // セット開始: { roomId, difficulty, problems }
   socket.on('set_start', (payload: { roomId: string; difficulty?: string; problems: string[] }) => {
     try {
@@ -190,6 +346,8 @@ io.on('connection', (socket: Socket) => {
       const state = roomStates.get(roomId);
       if (!state) return;
       clearRoomTimer(state);
+      // セットキャンセル時は関連セッションを全て終了
+      void closeRoomInteractiveSessions(roomId, 'set_cancel');
       roomStates.delete(roomId);
       broadcast(roomId, 'set_cancelled', { roomId });
     } catch {}
@@ -381,6 +539,8 @@ io.on('connection', (socket: Socket) => {
           else if (seats?.right === socket.id) seat = 'right';
           broadcast(roomId, 'winner', { roomId, problemId, seat, command });
           clearRoomTimer(state);
+          // 勝敗確定で直ちにインタラクティブセッションを終了
+          void closeRoomInteractiveSessions(roomId, 'phase_change');
           broadcast(roomId, 'question_end', { roomId, problemId, index: state.qIndex });
           startIntervalPhase(roomId, state, 5);
         }
@@ -398,6 +558,7 @@ io.on('connection', (socket: Socket) => {
       }
     }
   });
+
   // 自由シェル実行（判定や勝敗に影響させない）
   socket.on('shell_exec', async (payload: { roomId: string; command: string }) => {
     let hostWorkDir: string | null = null;
@@ -434,50 +595,6 @@ io.on('connection', (socket: Socket) => {
       }
       const problem = JSON.parse(await fs.readFile(problemPath, 'utf8'));
 
-      // allowlist（最低限の安全策）。未設定時は difficulty から推定プリセットを適用
-      try {
-        const presetName = (problem?.allowlistPreset ?? null) as string | null;
-        const binsFromProblem = Array.isArray(problem?.allowlistBins) ? (problem.allowlistBins as string[]) : [];
-        let binsFromPreset: string[] = [];
-        if (presetName) {
-          const presetsPath = path.join(repoRoot, 'problems', '_allowlists.json');
-          try {
-            const txt = await fs.readFile(presetsPath, 'utf8');
-            const obj = JSON.parse(txt);
-            const p = obj?.presets?.[presetName];
-            if (Array.isArray(p)) binsFromPreset = p as string[];
-          } catch {}
-        }
-        let allowlist = Array.from(new Set([...(binsFromPreset || []), ...(binsFromProblem || [])]));
-
-        if (allowlist.length === 0 && typeof problem?.difficulty === 'string') {
-          const diff = String(problem.difficulty).toLowerCase();
-          const map: Record<string, string> = {
-            starter: 'starter_wide',
-            basic: 'basic_wide',
-            premium: 'premium_task',
-            pro: 'pro_task',
-          };
-          const inferred = map[diff];
-          if (inferred) {
-            const presetsPath = path.join(repoRoot, 'problems', '_allowlists.json');
-            try {
-              const txt = await fs.readFile(presetsPath, 'utf8');
-              const obj = JSON.parse(txt);
-              const p = obj?.presets?.[inferred];
-              if (Array.isArray(p)) allowlist = Array.from(new Set([...(p as string[]), ...allowlist]));
-            } catch {}
-          }
-        }
-        if (allowlist.length > 0) {
-          const bin = extractFirstExecutable(command);
-          if (bin && !allowlist.includes(bin)) {
-            socket.emit('shell_result', { stdout: '', stderr: `not allowed: ${bin}`, exitCode: 126 });
-            return;
-          }
-        }
-      } catch {}
-
       // シナリオディレクトリ解決
       let scenarioDir: string | undefined;
       const files = problem?.prepare?.files as string | null | undefined; // 例: "scenarios/basic-01"
@@ -504,6 +621,22 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
+  async function findProblemPath(problemsDir: string, problemId: string) {
+    const entries = await fs.readdir(problemsDir);
+    for (const name of entries) {
+      if (!name.endsWith('.json')) continue;
+      const full = path.join(problemsDir, name);
+      try {
+        const txt = await fs.readFile(full, 'utf8');
+        const obj = JSON.parse(txt);
+        if (obj && obj.id === problemId) return full;
+      } catch {}
+    }
+  return null;
+}
+
+  
+
   socket.on('disconnect', () => {
     // 座席解放
     for (const [rid, seats] of roomSeats.entries()) {
@@ -511,6 +644,8 @@ io.on('connection', (socket: Socket) => {
       if (seats.right === socket.id) seats.right = undefined;
       roomSeats.set(rid, seats);
     }
+    // インタラクティブセッションをクリーンアップ
+    void closeInteractiveSession(socket.id, 'disconnect');
   });
 });
 
