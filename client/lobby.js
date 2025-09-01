@@ -13,8 +13,9 @@
     socket = io();
     socket.on('connect', () => {
       const rid = ($('roomId')?.value || '').trim() || 'r1';
-      // send ready with role
-      socket.emit('ready', { roomId: rid, role: role === 'owner' ? 'owner' : 'guest' });
+      const name = ($('userName')?.value || '').trim();
+      // send ready with role and name
+      socket.emit('ready', { roomId: rid, role: role === 'owner' ? 'owner' : 'guest', name });
       setStatus('接続完了。マッチング中…');
     });
 
@@ -35,6 +36,8 @@
       const params = new URLSearchParams();
       params.set('roomId', rid);
       params.set('role', role);
+      const name = ($('userName')?.value || '').trim();
+      if (name) params.set('name', name);
 
       if (role === 'owner') {
         // include difficulty and problems
@@ -86,7 +89,8 @@
     ensureSocket();
     if (socket?.connected) {
       const rid = ($('roomId')?.value || '').trim() || 'r1';
-      socket.emit('ready', { roomId: rid, role });
+      const name = ($('userName')?.value || '').trim();
+      socket.emit('ready', { roomId: rid, role, name });
       setStatus('接続完了。マッチング中…');
     }
   });
