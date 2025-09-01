@@ -38,7 +38,7 @@ export async function runInSandbox(opts: RunOptions) {
     OpenStdin: false,
     StdinOnce: false,
     HostConfig: {
-      AutoRemove: true,
+      AutoRemove: false,
       NetworkMode: 'none',
       ReadonlyRootfs: false,
       Binds: binds,
@@ -55,7 +55,7 @@ export async function runInSandbox(opts: RunOptions) {
     const logs = await container.logs({ stdout: true, stderr: true });
     return { stdout: logs.toString(), stderr: '', exitCode: result.StatusCode };
   } finally {
-    await container.remove();
+    try { await container.remove({ force: true }); } catch {}
   }
 }
 
