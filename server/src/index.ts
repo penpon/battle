@@ -196,21 +196,50 @@ function extractFirstExecutable(command: string): string | null {
 
 io.on('connection', (socket: Socket) => {
   // 自動入室と座席割当（デフォルト roomId=r1）
-  socket.on('ready', ({ roomId }: { roomId?: string } = {}) => {
+  socket.on('ready', ({ roomId, role }: { roomId?: string; role?: string } = {}) => {
     const rid = roomId || 'r1';
     socket.join(rid);
     let seats = roomSeats.get(rid) || {};
-    if (!seats.left) {
-      seats.left = socket.id;
-      socket.emit('seat_assigned', { roomId: rid, seat: 'left' });
-    } else if (!seats.right) {
-      seats.right = socket.id;
-      socket.emit('seat_assigned', { roomId: rid, seat: 'right' });
+    const r = (role || '').toLowerCase();
+
+    if (r === 'owner') {
+      if (!seats.left) {
+        seats.left = socket.id;
+        socket.emit('seat_assigned', { roomId: rid, seat: 'left' });
+      } else if (seats.left === socket.id) {
+        socket.emit('seat_assigned', { roomId: rid, seat: 'left' });
+      } else {
+        socket.emit('seat_assigned', { roomId: rid, seat: 'spectator' });
+      }
+    } else if (r === 'guest') {
+      if (!seats.right) {
+        seats.right = socket.id;
+        socket.emit('seat_assigned', { roomId: rid, seat: 'right' });
+      } else if (seats.right === socket.id) {
+        socket.emit('seat_assigned', { roomId: rid, seat: 'right' });
+      } else {
+        socket.emit('seat_assigned', { roomId: rid, seat: 'spectator' });
+      }
     } else {
-      // 3人目以降は観戦席
-      socket.emit('seat_assigned', { roomId: rid, seat: 'spectator' });
+      // 後方互換: 役割未指定は従来の自動割当
+      if (!seats.left) {
+        seats.left = socket.id;
+        socket.emit('seat_assigned', { roomId: rid, seat: 'left' });
+      } else if (!seats.right) {
+        seats.right = socket.id;
+        socket.emit('seat_assigned', { roomId: rid, seat: 'right' });
+      } else {
+        socket.emit('seat_assigned', { roomId: rid, seat: 'spectator' });
+      }
     }
     roomSeats.set(rid, seats);
+
+    const hasOwner = !!seats.left;
+    const hasGuest = !!seats.right;
+    broadcast(rid, 'room_status', { roomId: rid, hasOwner, hasGuest });
+    if (hasOwner && hasGuest) {
+      broadcast(rid, 'room_matched', { roomId: rid });
+    }
   });
 
   // --- インタラクティブシェル: 開始 ---
@@ -334,6 +363,9 @@ io.on('connection', (socket: Socket) => {
     try {
       const { roomId, difficulty, problems } = payload as { roomId: string; difficulty?: string; problems: string[] };
       if (!roomId || !Array.isArray(problems)) return;
+      // オーナー（left 席）だけが開始可能
+      const seats = roomSeats.get(roomId);
+      if (!seats || seats.left !== socket.id) return;
       socket.join(roomId);
       startSet(roomId, problems, difficulty);
     } catch {}
@@ -343,6 +375,9 @@ io.on('connection', (socket: Socket) => {
   socket.on('set_cancel', (payload: { roomId: string }) => {
     try {
       const { roomId } = payload as { roomId: string };
+      // オーナー（left 席）だけがキャンセル可能
+      const seats = roomSeats.get(roomId);
+      if (!seats || seats.left !== socket.id) return;
       const state = roomStates.get(roomId);
       if (!state) return;
       clearRoomTimer(state);
@@ -638,11 +673,16 @@ io.on('connection', (socket: Socket) => {
   
 
   socket.on('disconnect', () => {
-    // 座席解放
+    // 座席解放と room_status 更新
     for (const [rid, seats] of roomSeats.entries()) {
-      if (seats.left === socket.id) seats.left = undefined;
-      if (seats.right === socket.id) seats.right = undefined;
-      roomSeats.set(rid, seats);
+      let changed = false;
+      if (seats.left === socket.id) { seats.left = undefined; changed = true; }
+      if (seats.right === socket.id) { seats.right = undefined; changed = true; }
+      if (changed) {
+        roomSeats.set(rid, seats);
+        const hasOwner = !!seats.left; const hasGuest = !!seats.right;
+        broadcast(rid, 'room_status', { roomId: rid, hasOwner, hasGuest });
+      }
     }
     // インタラクティブセッションをクリーンアップ
     void closeInteractiveSession(socket.id, 'disconnect');
