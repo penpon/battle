@@ -8,6 +8,24 @@
   let leftTerm = null, rightTerm = null;
   let leftFit = null, rightFit = null;
 
+  // クエリパラメータ取得（owner/guest 遷移時に利用）
+  function getQuery() {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const problemsStr = sp.get('problems') || '';
+      return {
+        roomId: sp.get('roomId') || '',
+        role: (sp.get('role') || '').toLowerCase(),
+        difficulty: sp.get('difficulty') || '',
+        problems: problemsStr ? problemsStr.split(',').filter(Boolean) : [],
+      };
+    } catch {
+      return { roomId: '', role: '', difficulty: '', problems: [] };
+    }
+  }
+  const __qp = getQuery();
+  const myRole = (__qp.role === 'owner' || __qp.role === 'guest') ? __qp.role : '';
+
   function ensureTerms() {
     if (!leftTerm) {
       leftTerm = new window.Terminal({ convertEol: true, cursorBlink: true, scrollback: 1000, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' });
@@ -144,7 +162,7 @@
     const rid = $('roomId').value.trim() || 'r1';
 
     socket.on('connect', () => {
-      socket.emit('ready', { roomId: rid });
+      socket.emit('ready', { roomId: rid, role: myRole || undefined });
     });
 
     socket.on('seat_assigned', (p) => {
@@ -280,7 +298,7 @@
   $('btnConnect').addEventListener('click', () => {
     ensureSocket();
     // 部屋変更にも対応
-    if (socket?.connected) socket.emit('ready', { roomId: $('roomId').value.trim() || 'r1' });
+    if (socket?.connected) socket.emit('ready', { roomId: $('roomId').value.trim() || 'r1', role: myRole || undefined });
   });
 
   $('btnRandom').addEventListener('click', () => {
@@ -293,7 +311,30 @@
   });
 
   $('difficulty').addEventListener('change', applyPresetOrRandom);
-  applyPresetOrRandom();
+  // クエリ指定があれば優先的に適用
+  if (__qp.roomId) { $('roomId').value = __qp.roomId; }
+  if (__qp.difficulty) {
+    $('difficulty').value = __qp.difficulty;
+    applyPresetOrRandom();
+    if (__qp.problems && __qp.problems.length) {
+      const sel = $('problemsSelect');
+      for (const o of sel.options) o.selected = __qp.problems.includes(o.value);
+    }
+  } else {
+    applyPresetOrRandom();
+  }
+
+  // ゲストはセット操作不可（サーバ側でも制御済みだがクライアントでも反映）
+  if (myRole && myRole !== 'owner') {
+    $('btnStart').disabled = true;
+    $('btnCancel').disabled = true;
+  }
+
+  // クエリに roomId と role があれば自動接続
+  if (__qp.roomId && myRole) {
+    // UIに反映済みのため、そのまま接続
+    ensureSocket();
+  }
 
   $('btnStart').addEventListener('click', () => {
     const s = ensureSocket();
