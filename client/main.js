@@ -138,9 +138,20 @@
   function setSeat(seat) {
     mySeat = seat;
     $('seat').textContent = seat;
+    updateCheckButtons();
+  }
+  function updateCheckButtons() {
+    try {
+      const lb = document.getElementById('leftCheckBtn');
+      const rb = document.getElementById('rightCheckBtn');
+      const can = (seat) => (currentPhase === 'question' && !!currentProblemId && mySeat === seat);
+      if (lb) { lb.disabled = !can('left'); lb.style.opacity = can('left') ? '1' : '0.6'; }
+      if (rb) { rb.disabled = !can('right'); rb.style.opacity = can('right') ? '1' : '0.6'; }
+    } catch {}
   }
   function setInputEnabled(enabled) {
-    // 送信欄/ボタンは廃止。インタラクティブは常時有効（question中）。
+    // 入力有効状態に合わせてCheckボタンも更新
+    updateCheckButtons();
   }
   function clearLogs() {
     $('leftLog').textContent = '';
@@ -290,6 +301,7 @@
       setRemain(p.sec);
       clearLogs(); hideOverlay();
       ensureTerms();
+      updateCheckButtons();
       // 質問開始で自動的にインタラクティブシェルを起動
       startInteractive();
       // E2E自動解答（Starter 5問用）
@@ -486,6 +498,30 @@
     const roomId = $('roomId').value.trim() || 'r1';
     socket.emit('set_cancel', { roomId });
   });
+
+  // Checkボタン: 現在の行バッファを送信（Enter不要）
+  const leftCheckBtn = document.getElementById('leftCheckBtn');
+  if (leftCheckBtn) {
+    leftCheckBtn.addEventListener('click', () => {
+      if (mySeat !== 'left' || currentPhase !== 'question' || !currentProblemId) return;
+      const cmd = (leftLine || '').trim();
+      if (!cmd) return;
+      const roomId = $('roomId').value.trim() || 'r1';
+      ensureSocket();
+      socket.emit('submit_command', { roomId, problemId: currentProblemId, command: cmd });
+    });
+  }
+  const rightCheckBtn = document.getElementById('rightCheckBtn');
+  if (rightCheckBtn) {
+    rightCheckBtn.addEventListener('click', () => {
+      if (mySeat !== 'right' || currentPhase !== 'question' || !currentProblemId) return;
+      const cmd = (rightLine || '').trim();
+      if (!cmd) return;
+      const roomId = $('roomId').value.trim() || 'r1';
+      ensureSocket();
+      socket.emit('submit_command', { roomId, problemId: currentProblemId, command: cmd });
+    });
+  }
 
   // 送信欄は廃止（Enterで送信）
 
