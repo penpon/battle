@@ -148,19 +148,25 @@
     <div class="battle">
       <div class="terminal card" id="leftPane">
         <h3>Left: <span id="leftName">-</span> <span id="leftVerdict" class="verdict"></span></h3>
-        <div id="leftLog" class="log"></div>
         <!-- Interactive Terminal (Left) -->
         <div id="leftTermOut" class="log" style="height:260px; padding:0; overflow:hidden;"></div>
         <div id="leftTermStatus" class="typing shell"></div>
         <div id="leftShellTyping" class="typing shell"></div>
+        <div class="row">
+          <button id="leftCheckBtn" class="secondary">Check</button>
+        </div>
+        <div id="leftLog" class="log"></div>
       </div>
       <div class="terminal card" id="rightPane">
         <h3>Right: <span id="rightName">-</span> <span id="rightVerdict" class="verdict"></span></h3>
-        <div id="rightLog" class="log"></div>
         <!-- Interactive Terminal (Right) -->
         <div id="rightTermOut" class="log" style="height:260px; padding:0; overflow:hidden;"></div>
         <div id="rightTermStatus" class="typing shell"></div>
         <div id="rightShellTyping" class="typing shell"></div>
+        <div class="row">
+          <button id="rightCheckBtn" class="secondary">Check</button>
+        </div>
+        <div id="rightLog" class="log"></div>
       </div>
     </div>
   </main>
