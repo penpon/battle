@@ -46,6 +46,47 @@
     .overlay .banner { background: linear-gradient(135deg, #18254a, #11214e); border:1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 24px 28px; text-align:center; color:#fff; box-shadow: 0 10px 40px rgba(0,0,0,0.35); }
     .banner h2 { margin: 0 0 6px; font-size: 28px; }
     .banner p { margin: 0; color:#c8d4ff; }
+
+    /* Countdown Animation */
+    .overlay .banner.countdown { 
+      background: radial-gradient(1200px 600px at 50% 50%, rgba(38,58,120,0.35), rgba(16,28,64,0.75));
+      border: 1px solid rgba(130,150,255,0.25);
+      padding: 40px 56px;
+      min-width: 520px;
+      box-shadow: 0 18px 60px rgba(0,0,0,0.5), 0 0 50px rgba(91,140,255,0.15) inset;
+      animation: bannerPulse 1.6s ease-in-out infinite;
+    }
+    .banner.countdown h2 { 
+      font-size: 120px; 
+      letter-spacing: -4px; 
+      line-height: 1; 
+      text-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 0 30px rgba(91,140,255,0.35);
+      animation: numberPop 700ms cubic-bezier(.2,.8,.2,1);
+    }
+    .banner.countdown p { 
+      font-size: 18px; 
+      color: #cfe0ff; 
+      opacity: .9;
+      animation: subtitleFade 700ms ease-out;
+    }
+    /* 色アクセント（3,2,1 で変化） */
+    .banner.countdown.cd-3 h2 { color: #8fd9ff; text-shadow: 0 0 24px rgba(143,217,255,0.45), 0 0 60px rgba(143,217,255,0.25); }
+    .banner.countdown.cd-2 h2 { color: #9cf0c8; text-shadow: 0 0 24px rgba(156,240,200,0.45), 0 0 60px rgba(156,240,200,0.25); }
+    .banner.countdown.cd-1 h2 { color: #ffd18f; text-shadow: 0 0 24px rgba(255,209,143,0.55), 0 0 70px rgba(255,209,143,0.35); }
+
+    @keyframes bannerPulse { 
+      0%, 100% { transform: translateY(0); box-shadow: 0 18px 60px rgba(0,0,0,0.5), 0 0 50px rgba(91,140,255,0.12) inset; }
+      50% { transform: translateY(-2px); box-shadow: 0 22px 70px rgba(0,0,0,0.55), 0 0 70px rgba(91,140,255,0.2) inset; }
+    }
+    @keyframes numberPop {
+      0% { opacity: 0; transform: scale(.6) translateY(20px); filter: blur(2px); }
+      60% { opacity: 1; transform: scale(1.08) translateY(0); filter: blur(0); }
+      100% { opacity: 1; transform: scale(1) }
+    }
+    @keyframes subtitleFade {
+      0% { opacity: 0; transform: translateY(6px); }
+      100% { opacity: .9; transform: translateY(0); }
+    }
   </style>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" integrity="sha384-7b4x8tXoY5a4I9qN8m2bM+3g8m8yH3zM9oS2q0kLwqQGQHkE8As7oK0m0j5pZb1R" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
