@@ -29,6 +29,14 @@
     .prompt { display:flex; gap:8px; }
     .prompt input { flex:1; background:#09122a; color:#e9edfa; border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:10px 12px; }
     .typing { margin-top:6px; font-size:12px; color:#93a3c7; min-height: 18px; }
+    /* VS-style shell typing badges */
+    .typing.shell { display:inline-block; padding:4px 8px; border-radius:999px; border:1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); min-height:auto; }
+    #leftShellTyping.typing.shell { color:#8ef1c6; border-color: rgba(21,197,126,0.35); box-shadow: 0 0 10px rgba(21,197,126,0.25) inset, 0 0 8px rgba(21,197,126,0.25); }
+    #rightShellTyping.typing.shell { color:#ffc2c2; border-color: rgba(255,93,93,0.35); box-shadow: 0 0 10px rgba(255,93,93,0.25) inset, 0 0 8px rgba(255,93,93,0.25); }
+    #leftShellTyping.typing.shell::before { content:'LEFT · '; opacity:.9; }
+    #rightShellTyping.typing.shell::before { content:'RIGHT · '; opacity:.9; }
+    @keyframes pulseGlow { 0%{ filter: drop-shadow(0 0 0 rgba(255,255,255,0)); } 50%{ filter: drop-shadow(0 0 6px rgba(255,255,255,0.25)); } 100%{ filter: drop-shadow(0 0 0 rgba(255,255,255,0)); } }
+    #leftShellTyping.typing.shell, #rightShellTyping.typing.shell { animation: pulseGlow 1.6s ease-in-out infinite; }
     .log { margin-top:8px; background:#0a1126; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:8px; height:150px; overflow:auto; white-space: pre-wrap; }
     .statusbar { display:flex; gap:12px; align-items:center; color:#b8c3e3; font-size:12px; margin: 10px 0; }
     .verdict { padding:8px; border-radius:8px; }
@@ -67,7 +75,8 @@
         </div>
         <div class="row">
           <label>Problems</label>
-          <input id="problems" type="text" placeholder="comma separated problem IDs" />
+          <select id="problemsSelect" multiple size="7" style="flex:1; background:#0c1430; color: var(--text); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 6px;">
+          </select>
         </div>
       </div>
       <div class="statusbar">
@@ -92,6 +101,13 @@
         </div>
         <div id="leftTyping" class="typing"></div>
         <div id="leftLog" class="log"></div>
+        <div class="row" style="margin-top:8px;"><label style="min-width:auto;color:#93a3c7;font-size:12px;">Shell</label></div>
+        <div class="prompt">
+          <input id="leftShellInput" type="text" placeholder="run command in scenario..." />
+          <button id="leftShellRun">Run</button>
+        </div>
+        <div id="leftShellTyping" class="typing shell"></div>
+        <div id="leftShellLog" class="log"></div>
       </div>
       <div class="terminal card" id="rightPane">
         <h3>Right Terminal <span id="rightVerdict" class="verdict"></span></h3>
@@ -101,6 +117,13 @@
         </div>
         <div id="rightTyping" class="typing"></div>
         <div id="rightLog" class="log"></div>
+        <div class="row" style="margin-top:8px;"><label style="min-width:auto;color:#93a3c7;font-size:12px;">Shell</label></div>
+        <div class="prompt">
+          <input id="rightShellInput" type="text" placeholder="run command in scenario..." />
+          <button id="rightShellRun" disabled>Run</button>
+        </div>
+        <div id="rightShellTyping" class="typing shell"></div>
+        <div id="rightShellLog" class="log"></div>
       </div>
     </div>
   </main>
