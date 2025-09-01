@@ -62,7 +62,15 @@ async function closeInteractiveSession(socketId: string, reason?: string) {
   interactiveSessions.delete(socketId);
   if (s.hostWorkDir) { try { await fs.rm(s.hostWorkDir, { recursive: true, force: true }); } catch {} }
   const sock = io.sockets.sockets.get(socketId);
-  try { sock?.emit('shell_closed', { ok: true, reason: reason || 'closed' }); } catch {}
+  // seat を特定して部屋全体へも通知
+  let seat: 'left' | 'right' | 'unknown' = 'unknown';
+  try {
+    const seats = roomSeats.get(s.roomId);
+    if (seats?.left === socketId) seat = 'left';
+    else if (seats?.right === socketId) seat = 'right';
+  } catch {}
+  try { sock?.emit('shell_closed', { ok: true, seat, reason: reason || 'closed' }); } catch {}
+  try { broadcast(s.roomId, 'shell_closed', { ok: true, seat, reason: reason || 'closed' }); } catch {}
 }
 
 async function closeRoomInteractiveSessions(roomId: string, reason?: string) {
@@ -264,16 +272,22 @@ io.on('connection', (socket: Socket) => {
     try {
       const { roomId } = (payload || {}) as { roomId?: string };
       if (!roomId) return;
+      // 座席情報を解決
+      const seatsMap = roomSeats.get(roomId);
+      let seat: 'left' | 'right' | 'unknown' = 'unknown';
+      if (seatsMap?.left === socket.id) seat = 'left';
+      else if (seatsMap?.right === socket.id) seat = 'right';
 
       // 既存セッションがあれば無視（あるいは再利用）
       if (interactiveSessions.has(socket.id)) {
-        socket.emit('shell_started', { ok: true });
+        // 既存セッション再利用時も座席付きで通知（UIの整合性のため）
+        broadcast(roomId, 'shell_started', { ok: true, seat });
         return;
       }
 
       const state = roomStates.get(roomId);
       if (!state || state.phase !== 'question') {
-        socket.emit('shell_stream', { data: '\n[not_in_question]\n' });
+        broadcast(roomId, 'shell_stream', { seat, data: '\n[not_in_question]\n' });
         return;
       }
       const problemId = state.problems[state.qIndex];
@@ -292,7 +306,7 @@ io.on('connection', (socket: Socket) => {
         } catch {}
       }
       if (!problemPath) {
-        socket.emit('shell_stream', { data: '\n[problem_not_found]\n' });
+        broadcast(roomId, 'shell_stream', { seat, data: '\n[problem_not_found]\n' });
         return;
       }
       const problem = JSON.parse(await fs.readFile(problemPath, 'utf8'));
@@ -310,9 +324,9 @@ io.on('connection', (socket: Socket) => {
         workHostDir: hostWorkDir,
       });
 
-      // 出力ストリーム転送（現時点では本人にのみ送信）
+      // 出力ストリーム転送（部屋全員へ座席付きで配信）
       const onData = (chunk: Buffer) => {
-        try { socket.emit('shell_stream', { data: chunk.toString('utf8') }); } catch {}
+        try { broadcast(roomId, 'shell_stream', { seat, data: chunk.toString('utf8') }); } catch {}
         // アイドルタイマーをリセット
         try {
           const rec = interactiveSessions.get(socket.id);
@@ -328,7 +342,7 @@ io.on('connection', (socket: Socket) => {
       rec.idleTimer = setTimeout(() => { void closeInteractiveSession(socket.id, 'idle_timeout'); }, INTERACTIVE_IDLE_MS);
       rec.hardTimer = setTimeout(() => { void closeInteractiveSession(socket.id, 'hard_timeout'); }, INTERACTIVE_HARD_MS);
       interactiveSessions.set(socket.id, rec);
-      socket.emit('shell_started', { ok: true });
+      broadcast(roomId, 'shell_started', { ok: true, seat });
     } catch {
       socket.emit('shell_started', { ok: false });
       if (hostWorkDir) { try { await fs.rm(hostWorkDir, { recursive: true, force: true }); } catch {} }
@@ -451,7 +465,7 @@ io.on('connection', (socket: Socket) => {
         } catch {}
       }
       if (!problemPath) {
-        const out = { problemId, ok: false, reason: 'problem_not_found' };
+        const out = { problemId, ok: false, reason: 'problem_not_found', stdout: '', stderr: 'problem_not_found', exitCode: 127 };
         socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
         return;
       }
@@ -513,7 +527,7 @@ io.on('connection', (socket: Socket) => {
         };
         const r = judgeByRegex(command, policy);
         if (!r.pass) {
-          const out = { problemId, ok: false, reason: `regex_${r.reason ?? 'fail'}` };
+          const out = { problemId, ok: false, reason: `regex_${r.reason ?? 'fail'}`, stdout: '', stderr: `regex_${r.reason ?? 'fail'}`, exitCode: 2 };
           socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
           return;
         }
@@ -599,7 +613,7 @@ io.on('connection', (socket: Socket) => {
     } catch {
       try {
         const { roomId, problemId } = (payload || {}) as any;
-        const out = { problemId, ok: false, reason: 'internal_error' };
+        const out = { problemId, ok: false, reason: 'internal_error', stdout: '', stderr: 'internal_error', exitCode: 1 };
         socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
       } catch {}
     } finally {
