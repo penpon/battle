@@ -33,21 +33,38 @@
     const leftInput = $('leftInput'); const rightInput = $('rightInput');
     const leftShellRun = $('leftShellRun'); const rightShellRun = $('rightShellRun');
     const leftShellInput = $('leftShellInput'); const rightShellInput = $('rightShellInput');
+    // Interactive elements
+    const leftTermStart = $('leftTermStart'); const rightTermStart = $('rightTermStart');
+    const leftTermStop = $('leftTermStop'); const rightTermStop = $('rightTermStop');
+    const leftTermSend = $('leftTermSend'); const rightTermSend = $('rightTermSend');
+    const leftTermKey = $('leftTermKey'); const rightTermKey = $('rightTermKey');
     if (seat === 'left') {
       leftSend.disabled = false; rightSend.disabled = true;
       leftInput.placeholder = 'type command...'; rightInput.placeholder = 'opponent typing...';
       leftShellRun.disabled = false; rightShellRun.disabled = true;
       leftShellInput.placeholder = 'run command in scenario...'; rightShellInput.placeholder = 'opponent shell...';
+      leftTermStart.disabled = false; rightTermStart.disabled = true;
+      leftTermStop.disabled = true; rightTermStop.disabled = true;
+      leftTermSend.disabled = false; rightTermSend.disabled = true;
+      leftTermKey.placeholder = 'interactive input (Enter to send)'; rightTermKey.placeholder = 'opponent interactive...';
     } else if (seat === 'right') {
       leftSend.disabled = true; rightSend.disabled = false;
       leftInput.placeholder = 'opponent typing...'; rightInput.placeholder = 'type command...';
       leftShellRun.disabled = true; rightShellRun.disabled = false;
       leftShellInput.placeholder = 'opponent shell...'; rightShellInput.placeholder = 'run command in scenario...';
+      leftTermStart.disabled = true; rightTermStart.disabled = false;
+      leftTermStop.disabled = true; rightTermStop.disabled = true;
+      leftTermSend.disabled = true; rightTermSend.disabled = false;
+      leftTermKey.placeholder = 'opponent interactive...'; rightTermKey.placeholder = 'interactive input (Enter to send)';
     } else {
       leftSend.disabled = true; rightSend.disabled = true;
       leftInput.placeholder = 'spectator'; rightInput.placeholder = 'spectator';
       leftShellRun.disabled = true; rightShellRun.disabled = true;
       leftShellInput.placeholder = 'spectator'; rightShellInput.placeholder = 'spectator';
+      leftTermStart.disabled = true; rightTermStart.disabled = true;
+      leftTermStop.disabled = true; rightTermStop.disabled = true;
+      leftTermSend.disabled = true; rightTermSend.disabled = true;
+      leftTermKey.placeholder = 'spectator'; rightTermKey.placeholder = 'spectator';
     }
   }
   function setInputEnabled(enabled) {
@@ -67,6 +84,22 @@
     mineShellInput.disabled = !enabled || mySeat === 'spectator';
     mineShellRun.disabled = !enabled || mySeat === 'spectator';
     oppShellInput.disabled = true; oppShellRun.disabled = true;
+
+    // Interactive欄の有効/無効
+    const mineTermKey = mySeat === 'right' ? $('rightTermKey') : $('leftTermKey');
+    const mineTermSend = mySeat === 'right' ? $('rightTermSend') : $('leftTermSend');
+    const mineTermStart = mySeat === 'right' ? $('rightTermStart') : $('leftTermStart');
+    const mineTermStop = mySeat === 'right' ? $('rightTermStop') : $('leftTermStop');
+    const oppTermKey = mySeat === 'right' ? $('leftTermKey') : $('rightTermKey');
+    const oppTermSend = mySeat === 'right' ? $('leftTermSend') : $('rightTermSend');
+    const oppTermStart = mySeat === 'right' ? $('leftTermStart') : $('rightTermStart');
+    const oppTermStop = mySeat === 'right' ? $('leftTermStop') : $('rightTermStop');
+    mineTermKey.disabled = !enabled || mySeat === 'spectator';
+    mineTermSend.disabled = !enabled || mySeat === 'spectator';
+    mineTermStart.disabled = !enabled || mySeat === 'spectator';
+    // Stopは開始後のみ有効化するので、ここではフェーズでロック
+    mineTermStop.disabled = true;
+    oppTermKey.disabled = true; oppTermSend.disabled = true; oppTermStart.disabled = true; oppTermStop.disabled = true;
   }
   function clearLogs() {
     $('leftLog').textContent = '';
@@ -80,6 +113,13 @@
     // shell typing
     const lst = document.getElementById('leftShellTyping'); if (lst) lst.textContent = '';
     const rst = document.getElementById('rightShellTyping'); if (rst) rst.textContent = '';
+    // interactive logs
+    const lto = document.getElementById('leftTermOut'); if (lto) lto.textContent = '';
+    const rto = document.getElementById('rightTermOut'); if (rto) rto.textContent = '';
+    const lts = document.getElementById('leftTermStatus'); if (lts) lts.textContent = '';
+    const rts = document.getElementById('rightTermStatus'); if (rts) rts.textContent = '';
+    const ltk = document.getElementById('leftTermKey'); if (ltk) ltk.value = '';
+    const rtk = document.getElementById('rightTermKey'); if (rtk) rtk.value = '';
   }
   function showOverlay(title, desc) {
     $('overlayTitle').textContent = title;
@@ -109,8 +149,8 @@
       $('statement').textContent = '-';
       clearLogs(); hideOverlay();
     });
-    socket.on('set_end', () => { setPhase('idle'); hideOverlay(); });
-    socket.on('set_cancelled', () => { setPhase('idle'); hideOverlay(); });
+    socket.on('set_end', () => { setPhase('idle'); hideOverlay(); stopInteractive(); });
+    socket.on('set_cancelled', () => { setPhase('idle'); hideOverlay(); stopInteractive(); });
 
     socket.on('question_start', (p) => {
       currentProblemId = p.problemId;
@@ -119,9 +159,11 @@
       setIndex(p.index, p.total);
       setRemain(p.sec);
       clearLogs(); hideOverlay();
+      // 質問開始で自動的にインタラクティブシェルを起動
+      startInteractive();
     });
-    socket.on('question_end', () => { setPhase('interval'); });
-    socket.on('interval_start', (p) => { setPhase('interval'); setRemain(p.sec); });
+    socket.on('question_end', () => { setPhase('interval'); stopInteractive(); });
+    socket.on('interval_start', (p) => { setPhase('interval'); setRemain(p.sec); stopInteractive(); });
     socket.on('interval_end', () => { /* no-op */ });
     socket.on('timer_tick', (p) => { setRemain(p.remainingSec); });
 
@@ -148,6 +190,43 @@
       const badge = v.ok ? 'v-ok' : 'v-ng';
       $('leftVerdict').className = `verdict ${badge}`; $('leftVerdict').textContent = v.ok ? 'OK' : 'NG';
       $('rightVerdict').className = `verdict ${badge}`; $('rightVerdict').textContent = v.ok ? 'OK' : 'NG';
+    });
+
+    // --- Interactive shell events ---
+    socket.on('shell_started', (r) => {
+      const mineOut = mySeat === 'right' ? $('rightTermOut') : $('leftTermOut');
+      const mineStatus = mySeat === 'right' ? $('rightTermStatus') : $('leftTermStatus');
+      const mineStart = mySeat === 'right' ? $('rightTermStart') : $('leftTermStart');
+      const mineStop = mySeat === 'right' ? $('rightTermStop') : $('leftTermStop');
+      if (r && r.ok) {
+        mineStatus.textContent = 'started';
+        mineStart.disabled = true; // started -> cannot start again
+        mineStop.disabled = false; // allow stop
+        // send default resize
+        const roomId = $('roomId').value.trim() || 'r1';
+        socket.emit('shell_resize', { roomId, cols: 100, rows: 28 });
+      } else {
+        mineStatus.textContent = 'failed to start';
+      }
+      if (mineOut && !mineOut.textContent) mineOut.textContent = '';
+    });
+
+    socket.on('shell_stream', (m) => {
+      const data = (m && typeof m.data === 'string') ? m.data : '';
+      const mineOut = mySeat === 'right' ? $('rightTermOut') : $('leftTermOut');
+      if (mineOut) { mineOut.textContent += data; mineOut.scrollTop = mineOut.scrollHeight; }
+    });
+
+    socket.on('shell_closed', (m) => {
+      const reason = m?.reason || 'closed';
+      const mineStatus = mySeat === 'right' ? $('rightTermStatus') : $('leftTermStatus');
+      const mineStart = mySeat === 'right' ? $('rightTermStart') : $('leftTermStart');
+      const mineStop = mySeat === 'right' ? $('rightTermStop') : $('leftTermStop');
+      mineStatus.textContent = `closed: ${reason}`;
+      // allow re-start in question phase
+      const canEnable = currentPhase === 'question' && mySeat !== 'spectator';
+      mineStart.disabled = !canEnable;
+      mineStop.disabled = true;
     });
 
     // シェル実行結果（自分だけに返る）
@@ -256,11 +335,44 @@
     socket.emit('shell_exec', { roomId, command: cmd });
   }
 
+  // --- Interactive shell controls ---
+  function startInteractive() {
+    if (!socket || currentPhase !== 'question' || mySeat === 'spectator') return;
+    const roomId = $('roomId').value.trim() || 'r1';
+    socket.emit('shell_start_interactive', { roomId });
+  }
+  function stopInteractive() {
+    if (!socket || mySeat === 'spectator') return;
+    const roomId = $('roomId').value.trim() || 'r1';
+    socket.emit('shell_stop_interactive', { roomId });
+  }
+  function sendInteractiveInput(fromSeat) {
+    if (!socket || currentPhase !== 'question') return;
+    const roomId = $('roomId').value.trim() || 'r1';
+    const input = fromSeat === 'right' ? $('rightTermKey') : $('leftTermKey');
+    const text = input.value;
+    if (!text) return;
+    socket.emit('shell_input', { roomId, data: text.endsWith('\n') ? text : text + '\n' });
+    input.value = '';
+  }
+
   $('leftSend').addEventListener('click', () => { if (mySeat === 'left') sendCommand('left'); });
   $('rightSend').addEventListener('click', () => { if (mySeat === 'right') sendCommand('right'); });
 
   $('leftShellRun').addEventListener('click', () => { if (mySeat === 'left') runShell('left'); });
   $('rightShellRun').addEventListener('click', () => { if (mySeat === 'right') runShell('right'); });
+
+  // Interactive: left
+  $('leftTermStart').addEventListener('click', () => { if (mySeat === 'left') startInteractive(); });
+  $('leftTermStop').addEventListener('click', () => { if (mySeat === 'left') stopInteractive(); });
+  $('leftTermSend').addEventListener('click', () => { if (mySeat === 'left') sendInteractiveInput('left'); });
+  $('leftTermKey').addEventListener('keydown', (e) => { if (mySeat === 'left' && e.key === 'Enter') { e.preventDefault(); sendInteractiveInput('left'); } });
+
+  // Interactive: right
+  $('rightTermStart').addEventListener('click', () => { if (mySeat === 'right') startInteractive(); });
+  $('rightTermStop').addEventListener('click', () => { if (mySeat === 'right') stopInteractive(); });
+  $('rightTermSend').addEventListener('click', () => { if (mySeat === 'right') sendInteractiveInput('right'); });
+  $('rightTermKey').addEventListener('keydown', (e) => { if (mySeat === 'right' && e.key === 'Enter') { e.preventDefault(); sendInteractiveInput('right'); } });
 
   $('leftInput').addEventListener('input', (e) => {
     if (!socket) return;

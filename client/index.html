@@ -108,6 +108,18 @@
         </div>
         <div id="leftShellTyping" class="typing shell"></div>
         <div id="leftShellLog" class="log"></div>
+        <!-- Interactive Terminal (Left) -->
+        <div class="row" style="margin-top:8px; gap:8px; align-items:center;">
+          <label style="min-width:auto;color:#93a3c7;font-size:12px;">Interactive</label>
+          <button id="leftTermStart">Start</button>
+          <button id="leftTermStop" class="ghost">Stop</button>
+        </div>
+        <div id="leftTermOut" class="log" style="height:220px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;"></div>
+        <div class="prompt">
+          <input id="leftTermKey" type="text" placeholder="interactive input (Enter to send)" />
+          <button id="leftTermSend">Send</button>
+        </div>
+        <div id="leftTermStatus" class="typing shell"></div>
       </div>
       <div class="terminal card" id="rightPane">
         <h3>Right Terminal <span id="rightVerdict" class="verdict"></span></h3>
@@ -124,6 +136,18 @@
         </div>
         <div id="rightShellTyping" class="typing shell"></div>
         <div id="rightShellLog" class="log"></div>
+        <!-- Interactive Terminal (Right) -->
+        <div class="row" style="margin-top:8px; gap:8px; align-items:center;">
+          <label style="min-width:auto;color:#93a3c7;font-size:12px;">Interactive</label>
+          <button id="rightTermStart">Start</button>
+          <button id="rightTermStop" class="ghost">Stop</button>
+        </div>
+        <div id="rightTermOut" class="log" style="height:220px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;"></div>
+        <div class="prompt">
+          <input id="rightTermKey" type="text" placeholder="interactive input (Enter to send)" />
+          <button id="rightTermSend">Send</button>
+        </div>
+        <div id="rightTermStatus" class="typing shell"></div>
       </div>
     </div>
   </main>
