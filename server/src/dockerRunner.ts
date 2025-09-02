@@ -34,7 +34,8 @@ export async function runInSandbox(opts: RunOptions) {
     AttachStdin: false,
     AttachStdout: true,
     AttachStderr: true,
-    Tty: false,
+    // Enable TTY so that Docker returns raw stdout without multiplexed headers
+    Tty: true,
     OpenStdin: false,
     StdinOnce: false,
     HostConfig: {
