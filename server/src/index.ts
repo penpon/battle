@@ -650,6 +650,20 @@ io.on('connection', (socket: Socket) => {
         ok = run.exitCode === 0; reason = run.stderr || undefined;
       }
 
+      // 6.5) Regex Validator（問題定義のvalidators.regexに基づく、コマンド文字列の事前検証）
+      try {
+        const rx = problem?.validators?.regex as { allow?: string[]; deny?: string[] } | undefined;
+        if (rx && (Array.isArray(rx.allow) || Array.isArray(rx.deny))) {
+          const allow = Array.isArray(rx.allow) ? rx.allow.map((s: string) => new RegExp(s)) : undefined;
+          const deny = Array.isArray(rx.deny) ? rx.deny.map((s: string) => new RegExp(s)) : undefined;
+          const rxVerdict = judgeByRegex(command, { allow, deny });
+          if (!rxVerdict.pass) {
+            ok = false;
+            reason = rxVerdict.reason || 'regex_not_allowed';
+          }
+        }
+      } catch {}
+
       // 実行者の席情報を付与してクライアント側で該当端末に表示できるようにする
       let seatForVerdict: 'left' | 'right' | 'unknown' = 'unknown';
       try {
