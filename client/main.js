@@ -36,6 +36,11 @@
   let countdownDone = false;
   const autoAnswerEnabled = (__qp.e2e === '1' || __qp.auto === '1');
 
+  // 非表示制御文字を除去（\n,\r,\t, および ESC(0x1B) は残す＝ANSIカラー等は保持）
+  function sanitizePrintable(s) {
+    try { return String(s ?? '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1A\x1C-\x1F\x7F]/g, ''); } catch { return String(s ?? ''); }
+  }
+
   function ensureTerms() {
     if (!leftTerm) {
       leftTerm = new window.Terminal({ convertEol: true, cursorBlink: true, scrollback: 1000, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' });
@@ -350,6 +355,20 @@
       const badge = v.ok ? 'v-ok' : 'v-ng';
       $('leftVerdict').className = `verdict ${badge}`; $('leftVerdict').textContent = v.ok ? 'OK' : 'NG';
       $('rightVerdict').className = `verdict ${badge}`; $('rightVerdict').textContent = v.ok ? 'OK' : 'NG';
+      // どちらの席からの実行かに応じて、その端末に stdout+stderr を表示（実シェルに近づける）
+      try {
+        const combined = sanitizePrintable([(v.stdout || ''), (v.stderr || '')].filter(Boolean).join('\n'));
+        const text = combined + (combined.endsWith('\n') ? '' : '\r\n');
+        if (v.seat === 'left' && leftTerm) {
+          leftTerm.write(text);
+        } else if (v.seat === 'right' && rightTerm) {
+          rightTerm.write(text);
+        } else {
+          // 座席情報が無い場合は自席へフォールバック
+          if (mySeat === 'left' && leftTerm) leftTerm.write(text);
+          else if (mySeat === 'right' && rightTerm) rightTerm.write(text);
+        }
+      } catch {}
       if (autoAnswerEnabled) {
         const mark = `[E2E] verdict ${v.problemId || ''}: ${v.ok ? 'OK' : 'NG'}\n`;
         $('leftLog').textContent += mark; $('rightLog').textContent += mark;
