@@ -539,7 +539,14 @@ io.on('connection', (socket: Socket) => {
         ok = run.exitCode === 0; reason = run.stderr || undefined;
       }
 
-      const out = { problemId, ok, reason, stdout: run.stdout, stderr: run.stderr, exitCode: run.exitCode };
+      // 実行者の席情報を付与してクライアント側で該当端末に表示できるようにする
+      let seatForVerdict: 'left' | 'right' | 'unknown' = 'unknown';
+      try {
+        const seats = roomSeats.get(roomId);
+        if (seats?.left === socket.id) seatForVerdict = 'left';
+        else if (seats?.right === socket.id) seatForVerdict = 'right';
+      } catch {}
+      const out = { problemId, ok, reason, stdout: run.stdout, stderr: run.stderr, exitCode: run.exitCode, seat: seatForVerdict, command } as const;
       socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
 
       // 正解なら勝者を通知し、即インターバルへ移行
