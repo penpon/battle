@@ -349,9 +349,22 @@
 
     // 判定
     socket.on('verdict', (v) => {
-      const line = `[${new Date().toLocaleTimeString()}] ok=${v.ok} exit=${v.exitCode}\nstdout:\n${v.stdout}\n---\nstderr:\n${v.stderr}\n`;
-      $('leftLog').textContent += line; $('leftLog').scrollTop = $('leftLog').scrollHeight;
-      $('rightLog').textContent += line; $('rightLog').scrollTop = $('rightLog').scrollHeight;
+      // JSON表示（判定の記録）
+      const rec = {
+        t: new Date().toISOString(),
+        problemId: v.problemId ?? null,
+        seat: v.seat ?? null,
+        command: v.command ?? null,
+        ok: !!v.ok,
+        exitCode: typeof v.exitCode === 'number' ? v.exitCode : null,
+        reason: v.reason ?? null,
+        stdout: v.stdout ?? '',
+        stderr: v.stderr ?? '',
+      };
+      const line = JSON.stringify(rec, null, 2) + '\n';
+      const lLog = $('leftLog'); const rLog = $('rightLog');
+      if (lLog) { lLog.textContent += line; lLog.scrollTop = lLog.scrollHeight; }
+      if (rLog) { rLog.textContent += line; rLog.scrollTop = rLog.scrollHeight; }
       const badge = v.ok ? 'v-ok' : 'v-ng';
       $('leftVerdict').className = `verdict ${badge}`; $('leftVerdict').textContent = v.ok ? 'OK' : 'NG';
       $('rightVerdict').className = `verdict ${badge}`; $('rightVerdict').textContent = v.ok ? 'OK' : 'NG';
@@ -519,6 +532,19 @@
     const roomId = $('roomId').value.trim() || 'r1';
     socket.emit('set_cancel', { roomId });
   });
+
+  // ログ拡大/縮小ボタン
+  function setupLogExpand(btnId, logId) {
+    const btn = document.getElementById(btnId);
+    const log = document.getElementById(logId);
+    if (!btn || !log) return;
+    btn.addEventListener('click', () => {
+      const expanded = log.classList.toggle('expanded');
+      btn.textContent = expanded ? 'Collapse' : 'Expand';
+    });
+  }
+  setupLogExpand('leftLogExpand', 'leftLog');
+  setupLogExpand('rightLogExpand', 'rightLog');
 
   // Checkボタンは廃止（Enterで送信）
 
