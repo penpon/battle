@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Header Design Proposals (A–D)</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; background:#0b1022; color:#e7ecff; }
+    main { max-width: 1080px; margin: 28px auto; padding: 0 16px; }
+    h1 { margin: 0 0 12px; font-size: 22px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .card { background: #0e1633; border:1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px; }
+    .term { height: 180px; background: #000; border-radius: 8px; border:1px solid rgba(255,255,255,0.12); margin-top: 10px; }
+
+    /* verdict */
+    .verdict { padding: 6px 10px; border-radius: 8px; font-size: 12px; border:1px solid rgba(255,255,255,0.12); }
+    .v-ok { background: rgba(21,197,126,0.15); color:#8ef1c6; border-color: rgba(21,197,126,0.35); }
+    .v-ng { background: rgba(255,93,93,0.15); color:#ffc2c2; border-color: rgba(255,93,93,0.35); }
+
+    /* header design utilities */
+    .namebar { display:flex; align-items:center; gap:8px; font-weight:600; }
+    .chip { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); font-size:12px; letter-spacing:.2px; }
+    .dot { width:8px; height:8px; border-radius:50%; box-shadow: 0 0 6px currentColor; }
+    .accent-bar { height:4px; border-radius:4px; box-shadow: 0 0 10px currentColor; }
+
+    /* left theme (green) */
+    .theme-left { color:#8ef1c6; border-color: rgba(21,197,126,0.35); }
+    .theme-left-bg { background: rgba(21,197,126,0.10); border:1px solid rgba(21,197,126,0.35); color:#8ef1c6; }
+    .theme-left .dot, .theme-left-bg .dot { background:#15c57e; }
+    .theme-left-bar { background: linear-gradient(90deg, rgba(21,197,126,.65), rgba(21,197,126,.15)); }
+
+    /* right theme (red) */
+    .theme-right { color:#ffc2c2; border-color: rgba(255,93,93,0.35); }
+    .theme-right-bg { background: rgba(255,93,93,0.10); border:1px solid rgba(255,93,93,0.35); color:#ffc2c2; }
+    .theme-right .dot, .theme-right-bg .dot { background:#ff5d5d; }
+    .theme-right-bar { background: linear-gradient(90deg, rgba(255,93,93,.65), rgba(255,93,93,.15)); }
+
+    .variant { padding:8px; border:1px dashed rgba(255,255,255,0.06); border-radius:8px; margin-top:8px; }
+    .variant .title { font-size:12px; opacity:.7; margin-bottom:6px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Header Design Proposals</h1>
+    <p>左（緑）/右（赤）のテイストで <strong>A〜D</strong> の4案を左右並べで確認できます。</p>
+
+    <!-- A: ラベル＋名前のダブルチップ -->
+    <div class="variant">
+      <div class="title">A) ラベル＋名前のダブルチップ</div>
+      <div class="grid">
+        <div class="card">
+          <div class="namebar">
+            <span class="chip theme-left-bg"><span class="dot"></span> LEFT</span>
+            <span class="chip theme-left">alice</span>
+            <span class="verdict v-ok">OK</span>
+          </div>
+          <div class="term"></div>
+        </div>
+        <div class="card">
+          <div class="namebar">
+            <span class="chip theme-right-bg"><span class="dot"></span> RIGHT</span>
+            <span class="chip theme-right">bob</span>
+            <span class="verdict v-ok">OK</span>
+          </div>
+          <div class="term"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- B: ドット＋ロール＋名前のコンパクト -->
+    <div class="variant">
+      <div class="title">B) ドット＋ロール＋名前（コンパクト）</div>
+      <div class="grid">
+        <div class="card">
+          <div class="namebar">
+            <span class="dot theme-left"></span>
+            <span class="chip theme-left">LEFT</span>
+            <strong class="theme-left">alice</strong>
+            <span class="verdict v-ok">OK</span>
+          </div>
+          <div class="term"></div>
+        </div>
+        <div class="card">
+          <div class="namebar">
+            <span class="dot theme-right"></span>
+            <span class="chip theme-right">RIGHT</span>
+            <strong class="theme-right">bob</strong>
+            <span class="verdict v-ok">OK</span>
+          </div>
+          <div class="term"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- C: 強調バー＋チップ -->
+    <div class="variant">
+      <div class="title">C) 強調バー＋ダブルチップ</div>
+      <div class="grid">
+        <div class="card">
+          <div class="accent-bar theme-left-bar"></div>
+          <div class="namebar" style="margin-top:6px;">
+            <span class="chip theme-left-bg"><span class="dot"></span> LEFT</span>
+            <span class="chip theme-left">alice</span>
+            <span class="verdict v-ok">OK</span>
+          </div>
+          <div class="term"></div>
+        </div>
+        <div class="card">
+          <div class="accent-bar theme-right-bar"></div>
+          <div class="namebar" style="margin-top:6px;">
+            <span class="chip theme-right-bg"><span class="dot"></span> RIGHT</span>
+            <span class="chip theme-right">bob</span>
+            <span class="verdict v-ok">OK</span>
+          </div>
+          <div class="term"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- D: 一体型ピル -->
+    <div class="variant">
+      <div class="title">D) 一体型ピル（ロール＋名前）</div>
+      <div class="grid">
+        <div class="card">
+          <div class="namebar">
+            <span class="chip theme-left-bg" style="padding:6px 12px;">
+              <span class="dot"></span>
+              LEFT · alice
+            </span>
+            <span class="verdict v-ok">OK</span>
+          </div>
+          <div class="term"></div>
+        </div>
+        <div class="card">
+          <div class="namebar">
+            <span class="chip theme-right-bg" style="padding:6px 12px;">
+              <span class="dot"></span>
+              RIGHT · bob
+            </span>
+            <span class="verdict v-ok">OK</span>
+          </div>
+          <div class="term"></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</body>
+</html>

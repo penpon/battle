@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Name Header - Neon Chip</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; background:#0b1022; color:#e7ecff; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; }
+    main { max-width: 900px; margin: 40px auto; padding: 0 16px; }
+    h1 { margin: 0 0 16px; font-size: 20px; opacity:.9; }
+
+    .row { display:flex; gap: 18px; flex-wrap: wrap; }
+    .card { flex: 1 1 360px; background:#0e1633; border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:16px; }
+
+    .name-chip { display:inline-flex; align-items:center; gap:10px; padding:8px 14px; border-radius:999px; position: relative; backdrop-filter: blur(2px); border:1px solid currentColor; letter-spacing:.3px; font-weight:700; text-transform: lowercase; box-shadow: 0 0 18px currentColor inset, 0 0 16px color-mix(in oklab, currentColor 45%, transparent); }
+    .name-chip .dot { width:10px; height:10px; border-radius:50%; background: currentColor; box-shadow: 0 0 10px currentColor; }
+
+    .theme-green { color:#15c57e; }
+    .theme-red   { color:#ff5d5d; }
+    .label { font-size: 18px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Neon Chip（ユーザ名のみ）</h1>
+    <div class="row">
+      <div class="card">
+        <div class="name-chip theme-green"><span class="dot"></span><span class="label">alice</span></div>
+      </div>
+      <div class="card">
+        <div class="name-chip theme-red"><span class="dot"></span><span class="label">bob</span></div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
