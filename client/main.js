@@ -9,6 +9,8 @@
   let leftFit = null, rightFit = null;
   // 行バッファ（Enterでsubmit_commandに送る）
   let leftLine = '', rightLine = '';
+  // 自席のインタラクティブシェル起動状態（ローカルエコー制御用）
+  let myShellActive = false;
 
   // クエリパラメータ取得（owner/guest 遷移時に利用）
   function getQuery() {
@@ -78,6 +80,10 @@
               socket.emit('typing_shell', { roomId, text: preview });
             }
           }
+          // シェル未起動時はローカルにエコーして視認性を担保
+          if (!myShellActive && leftTerm) {
+            try { leftTerm.write(data); } catch {}
+          }
         }
       });
       leftTerm._onDataHooked = true;
@@ -109,6 +115,9 @@
               socket.emit('typing_shell', { roomId, text: preview });
             }
           }
+          if (!myShellActive && rightTerm) {
+            try { rightTerm.write(data); } catch {}
+          }
         }
       });
       rightTerm._onDataHooked = true;
@@ -127,8 +136,7 @@
   function setPhase(p) {
     currentPhase = p;
     $('phase').textContent = p;
-    const enable = p === 'question';
-    setInputEnabled(enable);
+    // 入力欄・チェックボタンは廃止済み
   }
   function setRemain(v) { $('remain').textContent = String(v ?? 0); }
   function setIndex(i, total) {
@@ -138,21 +146,8 @@
   function setSeat(seat) {
     mySeat = seat;
     $('seat').textContent = seat;
-    updateCheckButtons();
   }
-  function updateCheckButtons() {
-    try {
-      const lb = document.getElementById('leftCheckBtn');
-      const rb = document.getElementById('rightCheckBtn');
-      const can = (seat) => (currentPhase === 'question' && !!currentProblemId && mySeat === seat);
-      if (lb) { lb.disabled = !can('left'); lb.style.opacity = can('left') ? '1' : '0.6'; }
-      if (rb) { rb.disabled = !can('right'); rb.style.opacity = can('right') ? '1' : '0.6'; }
-    } catch {}
-  }
-  function setInputEnabled(enabled) {
-    // 入力有効状態に合わせてCheckボタンも更新
-    updateCheckButtons();
-  }
+  // Checkボタンは廃止のため、関連更新処理は不要
   function clearLogs() {
     $('leftLog').textContent = '';
     $('rightLog').textContent = '';
@@ -301,7 +296,11 @@
       setRemain(p.sec);
       clearLogs(); hideOverlay();
       ensureTerms();
-      updateCheckButtons();
+      // 端末にフォーカス（シェル起動失敗時でも入力を受け付けるため）
+      try {
+        if (mySeat === 'left' && leftTerm) leftTerm.focus();
+        else if (mySeat === 'right' && rightTerm) rightTerm.focus();
+      } catch {}
       // 質問開始で自動的にインタラクティブシェルを起動
       startInteractive();
       // E2E自動解答（Starter 5問用）
@@ -363,6 +362,7 @@
       const lts = document.getElementById('leftTermStatus');
       const rts = document.getElementById('rightTermStatus');
       if (r && r.ok) {
+        if (seat === mySeat) myShellActive = true;
         if (seat === 'left' && lts) lts.textContent = 'started';
         else if (seat === 'right' && rts) rts.textContent = 'started';
         // 初期fit→resize送信（自席のみ）
@@ -371,6 +371,7 @@
         if (mySeat === 'left') { leftFit.fit(); socket.emit('shell_resize', { roomId, cols: leftTerm.cols, rows: leftTerm.rows }); leftTerm.focus(); }
         else if (mySeat === 'right') { rightFit.fit(); socket.emit('shell_resize', { roomId, cols: rightTerm.cols, rows: rightTerm.rows }); rightTerm.focus(); }
       } else {
+        if (seat === mySeat) myShellActive = false;
         if (seat === 'left' && lts) lts.textContent = 'failed to start';
         else if (seat === 'right' && rts) rts.textContent = 'failed to start';
       }
@@ -394,6 +395,7 @@
       const seat = m?.seat;
       const lts = document.getElementById('leftTermStatus');
       const rts = document.getElementById('rightTermStatus');
+      if (seat === mySeat) myShellActive = false;
       if (seat === 'left' && lts) lts.textContent = `closed: ${reason}`;
       else if (seat === 'right' && rts) rts.textContent = `closed: ${reason}`;
     });
@@ -499,29 +501,7 @@
     socket.emit('set_cancel', { roomId });
   });
 
-  // Checkボタン: 現在の行バッファを送信（Enter不要）
-  const leftCheckBtn = document.getElementById('leftCheckBtn');
-  if (leftCheckBtn) {
-    leftCheckBtn.addEventListener('click', () => {
-      if (mySeat !== 'left' || currentPhase !== 'question' || !currentProblemId) return;
-      const cmd = (leftLine || '').trim();
-      if (!cmd) return;
-      const roomId = $('roomId').value.trim() || 'r1';
-      ensureSocket();
-      socket.emit('submit_command', { roomId, problemId: currentProblemId, command: cmd });
-    });
-  }
-  const rightCheckBtn = document.getElementById('rightCheckBtn');
-  if (rightCheckBtn) {
-    rightCheckBtn.addEventListener('click', () => {
-      if (mySeat !== 'right' || currentPhase !== 'question' || !currentProblemId) return;
-      const cmd = (rightLine || '').trim();
-      if (!cmd) return;
-      const roomId = $('roomId').value.trim() || 'r1';
-      ensureSocket();
-      socket.emit('submit_command', { roomId, problemId: currentProblemId, command: cmd });
-    });
-  }
+  // Checkボタンは廃止（Enterで送信）
 
   // 送信欄は廃止（Enterで送信）
 
