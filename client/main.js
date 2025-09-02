@@ -546,6 +546,45 @@
   setupLogExpand('leftLogExpand', 'leftLog');
   setupLogExpand('rightLogExpand', 'rightLog');
 
+  // ログ拡大時、外側クリックやESCで元に戻す
+  function collapseLog(logEl, btnEl) {
+    if (!logEl || !btnEl) return;
+    if (logEl.classList.contains('expanded')) {
+      logEl.classList.remove('expanded');
+      btnEl.textContent = 'Expand';
+    }
+  }
+  document.addEventListener('click', (e) => {
+    try {
+      const leftLogEl = document.getElementById('leftLog');
+      const rightLogEl = document.getElementById('rightLog');
+      const leftBtnEl = document.getElementById('leftLogExpand');
+      const rightBtnEl = document.getElementById('rightLogExpand');
+      const target = e.target;
+      // クリックがログ本体やボタン内であれば無視
+      const withinLeft = leftLogEl && leftLogEl.contains(target);
+      const withinRight = rightLogEl && rightLogEl.contains(target);
+      const onLeftBtn = leftBtnEl && leftBtnEl.contains(target);
+      const onRightBtn = rightBtnEl && rightBtnEl.contains(target);
+      if (withinLeft || withinRight || onLeftBtn || onRightBtn) return;
+      // それ以外（背景など）をクリックしたら閉じる
+      if (leftLogEl && leftLogEl.classList.contains('expanded')) collapseLog(leftLogEl, leftBtnEl);
+      if (rightLogEl && rightLogEl.classList.contains('expanded')) collapseLog(rightLogEl, rightBtnEl);
+    } catch {}
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      try {
+        const leftLogEl = document.getElementById('leftLog');
+        const rightLogEl = document.getElementById('rightLog');
+        const leftBtnEl = document.getElementById('leftLogExpand');
+        const rightBtnEl = document.getElementById('rightLogExpand');
+        if (leftLogEl && leftLogEl.classList.contains('expanded')) collapseLog(leftLogEl, leftBtnEl);
+        if (rightLogEl && rightLogEl.classList.contains('expanded')) collapseLog(rightLogEl, rightBtnEl);
+      } catch {}
+    }
+  });
+
   // Checkボタンは廃止（Enterで送信）
 
   // 送信欄は廃止（Enterで送信）
