@@ -40,6 +40,34 @@
     .log { margin-top:8px; background:#0a1126; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:8px; height:150px; overflow:auto; white-space: pre-wrap; }
     .log.expanded { position: fixed; inset: 8% 6% auto 6%; height: 84vh; z-index: 40; box-shadow: 0 12px 40px rgba(0,0,0,0.6); border-color: rgba(130,150,255,0.35); background:#071028; }
     .log-toolbar { display:flex; justify-content:flex-end; gap:8px; margin-top:6px; }
+    /* Name-only D (Underline Pulse) */
+    .pulse { display:inline-flex; flex-direction: column; gap:6px; }
+    .pulse .name { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight:900; letter-spacing:.8px; text-transform: uppercase; font-size: 18px; text-shadow: 0 0 22px rgba(255,255,255,0.08); }
+    .bar { height:4px; border-radius:4px; background: linear-gradient(90deg, rgba(255,255,255,.0), currentColor, rgba(255,255,255,.0)); filter: drop-shadow(0 0 8px currentColor); animation: sweep 1.8s ease-in-out infinite; }
+    .green { color:#15c57e; }
+    .red { color:#ff5d5d; }
+    @keyframes sweep { 0% { transform: translateX(-10%); opacity:.6; } 50% { transform: translateX(10%); opacity:1; } 100% { transform: translateX(-10%); opacity:.6; } }
+    /* hide verdict badges in header but keep in DOM for JS */
+    h3 .verdict { display:none; }
+    /* Header name badge design proposals */
+    .design-samples { margin: 6px 0 10px; display: grid; gap: 6px; }
+    .namebar { display:flex; align-items:center; gap:8px; font-weight:600; }
+    .chip { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); font-size:12px; letter-spacing:.2px; }
+    .dot { width:8px; height:8px; border-radius:50%; box-shadow: 0 0 6px currentColor; }
+    .accent-bar { height:4px; border-radius:4px; box-shadow: 0 0 10px currentColor; }
+    /* left theme (green) */
+    .theme-left { color:#8ef1c6; border-color: rgba(21,197,126,0.35); }
+    .theme-left-bg { background: rgba(21,197,126,0.10); border:1px solid rgba(21,197,126,0.35); color:#8ef1c6; }
+    .theme-left .dot, .theme-left-bg .dot { background:#15c57e; }
+    .theme-left-bar { background: linear-gradient(90deg, rgba(21,197,126,.65), rgba(21,197,126,.15)); }
+    /* right theme (red) */
+    .theme-right { color:#ffc2c2; border-color: rgba(255,93,93,0.35); }
+    .theme-right-bg { background: rgba(255,93,93,0.10); border:1px solid rgba(255,93,93,0.35); color:#ffc2c2; }
+    .theme-right .dot, .theme-right-bg .dot { background:#ff5d5d; }
+    .theme-right-bar { background: linear-gradient(90deg, rgba(255,93,93,.65), rgba(255,93,93,.15)); }
+    /* variants */
+    .variant { padding:6px 8px; border:1px dashed rgba(255,255,255,0.06); border-radius:8px; }
+    .variant .title { font-size:12px; opacity:.7; margin-bottom:4px; }
     .statusbar { display:flex; gap:12px; align-items:center; color:#b8c3e3; font-size:12px; margin: 10px 0; }
     .verdict { padding:8px; border-radius:8px; }
     .v-ok { background: rgba(21,197,126,0.15); color:#8ef1c6; border:1px solid rgba(21,197,126,0.35); }
@@ -149,20 +177,30 @@
 
     <div class="battle">
       <div class="terminal card" id="leftPane">
-        <h3>Left: <span id="leftName">-</span> <span id="leftVerdict" class="verdict"></span></h3>
+        <h3>
+          <div class="pulse green">
+            <span class="name" id="leftName">-</span>
+            <span class="bar"></span>
+            <span id="leftVerdict" class="verdict"></span>
+          </div>
+        </h3>
         <!-- Interactive Terminal (Left) -->
         <div id="leftTermOut" class="log" style="height:260px; padding:0; overflow:hidden;"></div>
         <div id="leftTermStatus" class="typing shell"></div>
-        <div id="leftShellTyping" class="typing shell"></div>
         <div id="leftLog" class="log" aria-label="Left verdict log (JSON)"></div>
         <div class="log-toolbar"><button id="leftLogExpand" class="ghost" aria-controls="leftLog">Expand</button></div>
       </div>
       <div class="terminal card" id="rightPane">
-        <h3>Right: <span id="rightName">-</span> <span id="rightVerdict" class="verdict"></span></h3>
+        <h3>
+          <div class="pulse red">
+            <span class="name" id="rightName">-</span>
+            <span class="bar"></span>
+            <span id="rightVerdict" class="verdict"></span>
+          </div>
+        </h3>
         <!-- Interactive Terminal (Right) -->
         <div id="rightTermOut" class="log" style="height:260px; padding:0; overflow:hidden;"></div>
         <div id="rightTermStatus" class="typing shell"></div>
-        <div id="rightShellTyping" class="typing shell"></div>
         <div id="rightLog" class="log" aria-label="Right verdict log (JSON)"></div>
         <div class="log-toolbar"><button id="rightLogExpand" class="ghost" aria-controls="rightLog">Expand</button></div>
       </div>
