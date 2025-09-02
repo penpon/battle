@@ -7,6 +7,7 @@ import { runInSandbox, startInteractiveShell, writeToInteractive, stopInteractiv
 import { judgeByRegex, type RegexJudge, type ExecResult, type FS as JudgeFS } from './judge.js';
 import { pathToFileURL, fileURLToPath } from 'url';
 import fastifyStatic from '@fastify/static';
+import Docker from 'dockerode';
 
 // ESM互換の __dirname/__filename を定義
 const __filename = fileURLToPath(import.meta.url);
@@ -31,8 +32,15 @@ interface RoomState {
   difficulty?: string;
   roomId: string;
   statements?: Record<string, string>;
+  // Optimization caches
+  problemPaths?: Record<string, string>;
+  problemObjs?: Record<string, any>;
+  // Reuse /work mount per question to avoid mkdtemp on every submit
+  hostWorkDir?: string;
 }
 const roomStates = new Map<string, RoomState>();
+// 質問中に使い回すランナーコンテナ（roomId単位）
+const questionRunners = new Map<string, { container: Docker.Container; workDir?: string }>();
 
 // 左右席の管理: roomId -> { left?: socketId, right?: socketId, leftName?: string, rightName?: string }
 const roomSeats = new Map<string, { left?: string; right?: string; leftName?: string; rightName?: string }>();
@@ -88,11 +96,23 @@ function broadcast(roomId: string, ev: string, payload: any) {
   io.to(roomId).emit(ev, payload);
 }
 
+async function removeQuestionRunner(roomId: string) {
+  const rec = questionRunners.get(roomId);
+  if (!rec) return;
+  try { await rec.container.kill({ signal: 'SIGHUP' }); } catch {}
+  try { await rec.container.stop({ t: 0 }); } catch {}
+  try { await rec.container.remove({ force: true }); } catch {}
+  questionRunners.delete(roomId);
+}
+
 function startIntervalPhase(roomId: string, state: RoomState, sec: number) {
   state.phase = 'interval';
   // フェーズ遷移時は部屋のインタラクティブセッションを終了
   // 非同期で実行し、フェーズ管理の進行は阻害しない
   void closeRoomInteractiveSessions(roomId, 'phase_change');
+  void removeQuestionRunner(roomId);
+  // 前問の /work をクリーンアップ
+  try { if (state.hostWorkDir) { void fs.rm(state.hostWorkDir, { recursive: true, force: true }); state.hostWorkDir = undefined; } } catch {}
   state.remainingSec = sec;
   broadcast(roomId, 'interval_start', { roomId, sec });
   clearRoomTimer(state);
@@ -117,11 +137,48 @@ function startIntervalPhase(roomId: string, state: RoomState, sec: number) {
   }, 1000);
 }
 
-function startQuestionPhase(roomId: string, state: RoomState, sec: number) {
+async function startQuestionPhase(roomId: string, state: RoomState, sec: number) {
   state.phase = 'question';
   state.remainingSec = sec;
   const problemId = state.problems[state.qIndex];
   const statement = state.statements?.[problemId];
+  // 新しい問題用の /work を作成（前問のものが残っていれば削除）
+  try { if (state.hostWorkDir) { void fs.rm(state.hostWorkDir, { recursive: true, force: true }); } } catch {}
+  try { state.hostWorkDir = await fs.mkdtemp(path.join(os.tmpdir(), 'duel-work-')); } catch { state.hostWorkDir = undefined; }
+  // ランナーコンテナを起動（sleep infinity で待機）
+  try {
+    const docker = new Docker();
+    const problem = state.problemObjs?.[problemId];
+    const image = problem?.prepare?.image || 'ubuntu:22.04';
+    let scenarioDir: string | undefined;
+    const files = problem?.prepare?.files as string | null | undefined;
+    if (files) scenarioDir = path.join(repoRoot, files);
+    const workDir = state.hostWorkDir;
+    const binds: string[] = [];
+    if (scenarioDir) binds.push(`${path.resolve(scenarioDir)}:/scenario:ro`);
+    if (workDir) binds.push(`${path.resolve(workDir)}:/work:rw`);
+    const container = await docker.createContainer({
+      Image: image,
+      Cmd: ['/bin/sh', '-lc', 'sleep infinity'],
+      Tty: true,
+      OpenStdin: false,
+      AttachStdout: false,
+      AttachStderr: false,
+      HostConfig: {
+        AutoRemove: false,
+        NetworkMode: 'none',
+        ReadonlyRootfs: false,
+        Binds: binds,
+        Tmpfs: workDir ? undefined : { ['/work']: 'rw,mode=1777' },
+        CapDrop: ['ALL'],
+        Memory: 256 * 1024 * 1024,
+        PidsLimit: 128,
+      },
+      WorkingDir: '/work',
+    });
+    await container.start();
+    questionRunners.set(roomId, { container, workDir });
+  } catch {}
   broadcast(roomId, 'question_start', { roomId, problemId, statement, index: state.qIndex, total: state.problems.length, sec });
   clearRoomTimer(state);
   state.timer = setInterval(() => {
@@ -141,6 +198,8 @@ async function startSet(roomId: string, problems: string[], difficulty?: string)
   state = { phase: 'idle', problems, qIndex: 0, remainingSec: 0, timer: undefined, difficulty, roomId };
   // 事前に問題文を読み込む
   const statements: Record<string, string> = {};
+  const problemPaths: Record<string, string> = {};
+  const problemObjs: Record<string, any> = {};
   try {
     const problemsDir = path.join(repoRoot, 'problems');
     const entries = await fs.readdir(problemsDir);
@@ -162,10 +221,14 @@ async function startSet(roomId: string, problems: string[], difficulty?: string)
       try {
         const obj = JSON.parse(await fs.readFile(p, 'utf8'));
         if (typeof obj.statement === 'string') statements[pid] = obj.statement as string;
+        problemPaths[pid] = p;
+        problemObjs[pid] = obj;
       } catch {}
     }
   } catch {}
   state.statements = statements;
+  state.problemPaths = problemPaths;
+  state.problemObjs = problemObjs;
   roomStates.set(roomId, state);
   broadcast(roomId, 'set_start', { roomId, difficulty, problems, total: problems.length });
   if (problems.length === 0) {
@@ -173,7 +236,7 @@ async function startSet(roomId: string, problems: string[], difficulty?: string)
     roomStates.delete(roomId);
     return;
   }
-  startQuestionPhase(roomId, state, 90);
+  await startQuestionPhase(roomId, state, 90);
 }
 
 // コマンド先頭の実行ファイル名を抽出する
@@ -403,7 +466,7 @@ io.on('connection', (socket: Socket) => {
       const seats = roomSeats.get(roomId);
       if (!seats || seats.left !== socket.id) return;
       socket.join(roomId);
-      startSet(roomId, problems, difficulty);
+      void startSet(roomId, problems, difficulty);
     } catch {}
   });
 
@@ -419,6 +482,9 @@ io.on('connection', (socket: Socket) => {
       clearRoomTimer(state);
       // セットキャンセル時は関連セッションを全て終了
       void closeRoomInteractiveSessions(roomId, 'set_cancel');
+      void removeQuestionRunner(roomId);
+      // /work のクリーンアップ
+      try { if (state.hostWorkDir) { void fs.rm(state.hostWorkDir, { recursive: true, force: true }); state.hostWorkDir = undefined; } } catch {}
       roomStates.delete(roomId);
       broadcast(roomId, 'set_cancelled', { roomId });
     } catch {}
@@ -454,28 +520,38 @@ io.on('connection', (socket: Socket) => {
 
   socket.on('submit_command', async (payload: { roomId: string; problemId: string; command: string }) => {
     let hostWorkDir: string | null = null;
+    let localCreatedWork = false;
     try {
       const { roomId, problemId, command } = payload as { roomId: string; problemId: string; command: string };
 
-      // 1) 問題JSONを id で解決
-      const problemsDir = path.join(repoRoot, 'problems');
-      const entries = await fs.readdir(problemsDir);
-      let problemPath: string | null = null;
-      for (const name of entries) {
-        if (!name.endsWith('.json')) continue;
-        const full = path.join(problemsDir, name);
-        try {
-          const txt = await fs.readFile(full, 'utf8');
-          const obj = JSON.parse(txt);
-          if (obj && obj.id === problemId) { problemPath = full; break; }
-        } catch {}
+      // 1) 問題JSONを解決（キャッシュ優先）
+      const state = roomStates.get(roomId);
+      let problemPath: string | null = state?.problemPaths?.[problemId] || null;
+      let problem: any = state?.problemObjs?.[problemId];
+      if (!problemPath || !problem) {
+        const problemsDir = path.join(repoRoot, 'problems');
+        const entries = await fs.readdir(problemsDir);
+        for (const name of entries) {
+          if (!name.endsWith('.json')) continue;
+          const full = path.join(problemsDir, name);
+          try {
+            const txt = await fs.readFile(full, 'utf8');
+            const obj = JSON.parse(txt);
+            if (obj && obj.id === problemId) { problemPath = full; problem = obj; break; }
+          } catch {}
+        }
+        if (state) {
+          if (!state.problemPaths) state.problemPaths = {};
+          if (!state.problemObjs) state.problemObjs = {};
+          if (problemPath) state.problemPaths[problemId] = problemPath;
+          if (problem) state.problemObjs[problemId] = problem;
+        }
       }
-      if (!problemPath) {
+      if (!problemPath || !problem) {
         const out = { problemId, ok: false, reason: 'problem_not_found', stdout: '', stderr: 'problem_not_found', exitCode: 127 };
         socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
         return;
       }
-      const problem = JSON.parse(await fs.readFile(problemPath, 'utf8'));
 
       // [Allowlist Disabled] すべてのコマンドを許可するため、allowlist/プリセットの適用をスキップ
 
@@ -486,16 +562,51 @@ io.on('connection', (socket: Socket) => {
       const files = problem?.prepare?.files as string | null | undefined; // 例: "scenarios/basic-01"
       if (files) scenarioDir = path.join(repoRoot, files);
 
-      // 4) ホスト一時 /work ディレクトリ（bind mount 用）
-      hostWorkDir = await fs.mkdtemp(path.join(os.tmpdir(), 'duel-work-'));
+      // 4) ホスト一時 /work ディレクトリ（bind mount 用）: 問題中は再利用
+      if (state?.hostWorkDir) {
+        hostWorkDir = state.hostWorkDir;
+      } else {
+        hostWorkDir = await fs.mkdtemp(path.join(os.tmpdir(), 'duel-work-'));
+        localCreatedWork = true;
+      }
 
-      // 5) Dockerで実行
-      const run = await runInSandbox({
-        image: problem?.prepare?.image || 'ubuntu:22.04',
-        cmd: command,
-        scenarioDir,
-        workHostDir: hostWorkDir,
-      });
+      // 5) 実行: ランナーがあれば docker exec、無ければフォールバックでコンテナ生成
+      let run: { stdout: string; stderr: string; exitCode: number };
+      const runner = questionRunners.get(roomId);
+      if (runner) {
+        try {
+          const exec = await runner.container.exec({
+            Cmd: ['/bin/sh', '-lc', command],
+            AttachStdout: true,
+            AttachStderr: true,
+            Tty: true,
+            WorkingDir: '/work',
+          });
+          run = await new Promise(async (resolve) => {
+            try {
+              const stream = await exec.start({ Detach: false, Tty: true } as any);
+              const chunks: Buffer[] = [];
+              stream.on('data', (d: Buffer) => chunks.push(Buffer.from(d)));
+              stream.on('end', async () => {
+                try {
+                  const info = await exec.inspect();
+                  const text = Buffer.concat(chunks).toString('utf8');
+                  resolve({ stdout: text, stderr: '', exitCode: info.ExitCode ?? 0 });
+                } catch {
+                  resolve({ stdout: Buffer.concat(chunks).toString('utf8'), stderr: '', exitCode: 0 });
+                }
+              });
+              stream.on('error', () => resolve({ stdout: '', stderr: 'exec_stream_error', exitCode: 1 }));
+            } catch {
+              resolve({ stdout: '', stderr: 'exec_start_error', exitCode: 1 });
+            }
+          });
+        } catch {
+          run = await runInSandbox({ image: problem?.prepare?.image || 'ubuntu:22.04', cmd: command, scenarioDir, workHostDir: hostWorkDir });
+        }
+      } else {
+        run = await runInSandbox({ image: problem?.prepare?.image || 'ubuntu:22.04', cmd: command, scenarioDir, workHostDir: hostWorkDir });
+      }
 
       // 6) Effect Validator（/scenario と /work を参照可能）
       const effScript = problem?.validators?.effect?.script as string | undefined;
@@ -572,8 +683,8 @@ io.on('connection', (socket: Socket) => {
         socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
       } catch {}
     } finally {
-      // cleanup host /work
-      if (hostWorkDir) {
+      // cleanup host /work（この submit で作った場合のみ）
+      if (localCreatedWork && hostWorkDir) {
         try { await fs.rm(hostWorkDir, { recursive: true, force: true }); } catch {}
       }
     }
@@ -582,6 +693,7 @@ io.on('connection', (socket: Socket) => {
   // 自由シェル実行（判定や勝敗に影響させない）
   socket.on('shell_exec', async (payload: { roomId: string; command: string }) => {
     let hostWorkDir: string | null = null;
+    let localCreatedWork = false;
     try {
       const { roomId, command } = (payload || {}) as { roomId?: string; command?: string };
       if (!roomId || !command) {
@@ -596,24 +708,28 @@ io.on('connection', (socket: Socket) => {
       }
       const problemId = state.problems[state.qIndex];
 
-      // 問題JSONを id で解決
-      const problemsDir = path.join(repoRoot, 'problems');
-      const entries = await fs.readdir(problemsDir);
-      let problemPath: string | null = null;
-      for (const name of entries) {
-        if (!name.endsWith('.json')) continue;
-        const full = path.join(problemsDir, name);
-        try {
-          const txt = await fs.readFile(full, 'utf8');
-          const obj = JSON.parse(txt);
-          if (obj && obj.id === problemId) { problemPath = full; break; }
-        } catch {}
+      // 問題JSONを id で解決（キャッシュ優先）
+      let problemPath: string | null = state.problemPaths?.[problemId] || null;
+      let problem: any = state.problemObjs?.[problemId];
+      if (!problemPath || !problem) {
+        const problemsDir = path.join(repoRoot, 'problems');
+        const entries = await fs.readdir(problemsDir);
+        for (const name of entries) {
+          if (!name.endsWith('.json')) continue;
+          const full = path.join(problemsDir, name);
+          try {
+            const txt = await fs.readFile(full, 'utf8');
+            const obj = JSON.parse(txt);
+            if (obj && obj.id === problemId) { problemPath = full; problem = obj; break; }
+          } catch {}
+        }
+        if (problemPath) { if (!state.problemPaths) state.problemPaths = {}; state.problemPaths[problemId] = problemPath; }
+        if (problem) { if (!state.problemObjs) state.problemObjs = {}; state.problemObjs[problemId] = problem; }
       }
       if (!problemPath) {
         socket.emit('shell_result', { stdout: '', stderr: 'problem_not_found', exitCode: 127 });
         return;
       }
-      const problem = JSON.parse(await fs.readFile(problemPath, 'utf8'));
 
       // シナリオディレクトリ解決
       let scenarioDir: string | undefined;
@@ -621,21 +737,54 @@ io.on('connection', (socket: Socket) => {
       if (files) scenarioDir = path.join(repoRoot, files);
 
       // ホスト一時 /work ディレクトリ（bind mount 用）
-      hostWorkDir = await fs.mkdtemp(path.join(os.tmpdir(), 'duel-work-'));
+      if (state.hostWorkDir) { hostWorkDir = state.hostWorkDir; } else {
+        hostWorkDir = await fs.mkdtemp(path.join(os.tmpdir(), 'duel-work-'));
+        localCreatedWork = true;
+      }
 
-      // Dockerで実行（判定・勝敗処理はしない）
-      const run = await runInSandbox({
-        image: problem?.prepare?.image || 'ubuntu:22.04',
-        cmd: command,
-        scenarioDir,
-        workHostDir: hostWorkDir,
-      });
+      // ランナー exec で高速化（なければフォールバック）
+      let run: { stdout: string; stderr: string; exitCode: number };
+      const runner = questionRunners.get(roomId);
+      if (runner) {
+        try {
+          const exec = await runner.container.exec({
+            Cmd: ['/bin/sh', '-lc', command],
+            AttachStdout: true,
+            AttachStderr: true,
+            Tty: true,
+            WorkingDir: '/work',
+          });
+          run = await new Promise(async (resolve) => {
+            try {
+              const stream = await exec.start({ Detach: false, Tty: true } as any);
+              const chunks: Buffer[] = [];
+              stream.on('data', (d: Buffer) => chunks.push(Buffer.from(d)));
+              stream.on('end', async () => {
+                try {
+                  const info = await exec.inspect();
+                  const text = Buffer.concat(chunks).toString('utf8');
+                  resolve({ stdout: text, stderr: '', exitCode: info.ExitCode ?? 0 });
+                } catch {
+                  resolve({ stdout: Buffer.concat(chunks).toString('utf8'), stderr: '', exitCode: 0 });
+                }
+              });
+              stream.on('error', () => resolve({ stdout: '', stderr: 'exec_stream_error', exitCode: 1 }));
+            } catch {
+              resolve({ stdout: '', stderr: 'exec_start_error', exitCode: 1 });
+            }
+          });
+        } catch {
+          run = await runInSandbox({ image: problem?.prepare?.image || 'ubuntu:22.04', cmd: command, scenarioDir, workHostDir: hostWorkDir });
+        }
+      } else {
+        run = await runInSandbox({ image: problem?.prepare?.image || 'ubuntu:22.04', cmd: command, scenarioDir, workHostDir: hostWorkDir });
+      }
 
       socket.emit('shell_result', { stdout: run.stdout, stderr: run.stderr, exitCode: run.exitCode });
     } catch {
       socket.emit('shell_result', { stdout: '', stderr: 'internal_error', exitCode: 1 });
     } finally {
-      if (hostWorkDir) {
+      if (localCreatedWork && hostWorkDir) {
         try { await fs.rm(hostWorkDir, { recursive: true, force: true }); } catch {}
       }
     }
@@ -690,6 +839,23 @@ async function bootstrap() {
     });
 
     await fastify.ready();
+    // 事前にベースイメージをpull（非同期）。初回起動時のレイテンシを低減
+    (async () => {
+      try {
+        const docker = new Docker();
+        const image = 'ubuntu:22.04';
+        // listImages フィルタで存在確認
+        const imgs = await docker.listImages({ filters: { reference: [image] } as any });
+        if (!imgs || imgs.length === 0) {
+          await new Promise<void>((resolve, reject) => {
+            docker.pull(image, (err: unknown, stream: unknown) => {
+              if (err) return reject(err as Error);
+              docker.modem.followProgress(stream as any, (e: any) => (e ? reject(e) : resolve()));
+            });
+          });
+        }
+      } catch {}
+    })();
     const PORT = parseInt(process.env.PORT ?? '3000', 10);
     const HOST = process.env.HOST ?? '0.0.0.0';
     await fastify.listen({ port: PORT, host: HOST });
