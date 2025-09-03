@@ -123,8 +123,10 @@
       }
       function text(el, v) { if (el) el.textContent = (v == null || v === '') ? '-' : String(v); }
 
+      let raw = null;
+      try { raw = localStorage.getItem('duelResult'); console.log('[result:load] raw', raw); } catch {}
       let data = null;
-      try { data = JSON.parse(localStorage.getItem('duelResult') || 'null'); } catch {}
+      try { data = JSON.parse(raw || 'null'); console.log('[result:load] parsed', data); } catch (e) { try { console.log('[result:load] parse_error', e); } catch {} }
       // フォールバック: クエリから roomId だけ反映
       const sp = new URLSearchParams(location.search);
       const fallbackRoomId = sp.get('roomId') || 'r1';
@@ -132,8 +134,8 @@
       const roomId = (data && data.roomId) || fallbackRoomId;
       const totalProblems = (data && (data.totalProblems ?? (Array.isArray(data.rounds) ? data.rounds.length : null))) ?? 0;
       const durationSec = (data && typeof data.durationSec === 'number') ? data.durationSec : null;
-      const leftName = (data && data.leftName) || '-';
-      const rightName = (data && data.rightName) || '-';
+      const leftName = (() => { const v = data && data.leftName; const s = (v == null ? '-' : String(v)).trim(); return s || '-'; })();
+      const rightName = (() => { const v = data && data.rightName; const s = (v == null ? '-' : String(v)).trim(); return s || '-'; })();
       const scoreLeft = (data && (data.scoreLeft ?? data.leftPoints ?? data.leftCorrect)) ?? 0;
       const scoreRight = (data && (data.scoreRight ?? data.rightPoints ?? data.rightCorrect)) ?? 0;
       const leftPoints = (data && (data.leftPoints ?? data.leftCorrect)) ?? (scoreLeft ?? 0);
