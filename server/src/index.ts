@@ -89,7 +89,7 @@ const interactiveSessions = new Map<string, {
 const interactiveStarting = new Set<string>();
 
 // タイムアウト設定とクリーンアップヘルパ
-const INTERACTIVE_IDLE_MS = 30000; // 入力・出力が無い場合のアイドルタイムアウト
+const INTERACTIVE_IDLE_MS = 0; // 入力・出力が無い場合のアイドルタイムアウト（0で無効化）
 const INTERACTIVE_HARD_MS = 95000; // 絶対タイムアウト（問題90秒をやや超過で保険）
 
 async function closeInteractiveSession(socketId: string, reason?: string) {
@@ -483,14 +483,18 @@ io.on('connection', (socket: Socket) => {
           const rec = interactiveSessions.get(socket.id);
           if (rec) {
             if (rec.idleTimer) clearTimeout(rec.idleTimer);
-            rec.idleTimer = setTimeout(() => { void closeInteractiveSession(socket.id, 'idle_timeout'); }, INTERACTIVE_IDLE_MS);
+            if (INTERACTIVE_IDLE_MS > 0) {
+              rec.idleTimer = setTimeout(() => { void closeInteractiveSession(socket.id, 'idle_timeout'); }, INTERACTIVE_IDLE_MS);
+            }
           }
         } catch {}
       };
       sess.stream.on('data', onData);
       // セッション登録とタイムアウト設定
       const rec = { sess, hostWorkDir: hostWorkDir || undefined, roomId, problemId, onData } as any;
-      rec.idleTimer = setTimeout(() => { void closeInteractiveSession(socket.id, 'idle_timeout'); }, INTERACTIVE_IDLE_MS);
+      if (INTERACTIVE_IDLE_MS > 0) {
+        rec.idleTimer = setTimeout(() => { void closeInteractiveSession(socket.id, 'idle_timeout'); }, INTERACTIVE_IDLE_MS);
+      }
       rec.hardTimer = setTimeout(() => { void closeInteractiveSession(socket.id, 'hard_timeout'); }, INTERACTIVE_HARD_MS);
       interactiveSessions.set(socket.id, rec);
       // 起動中フラグを解除
@@ -515,7 +519,9 @@ io.on('connection', (socket: Socket) => {
       // 入力があればアイドルタイマーをリセット
       try {
         if (s.idleTimer) clearTimeout(s.idleTimer);
-        s.idleTimer = setTimeout(() => { void closeInteractiveSession(socket.id, 'idle_timeout'); }, INTERACTIVE_IDLE_MS);
+        if (INTERACTIVE_IDLE_MS > 0) {
+          s.idleTimer = setTimeout(() => { void closeInteractiveSession(socket.id, 'idle_timeout'); }, INTERACTIVE_IDLE_MS);
+        }
       } catch {}
     } catch {}
   });
