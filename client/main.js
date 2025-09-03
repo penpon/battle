@@ -13,6 +13,8 @@
   let myShellActive = false;
   // 席ごとのインタラクティブ稼働状態（verdict の端末反映抑止に使用）
   let leftShellActive = false, rightShellActive = false;
+  // ANSIエスケープシーケンス解析用モード（'esc' | 'csi' | 'ss3' | null）
+  let leftAnsiMode = null, rightAnsiMode = null;
   // スコア（案C: ヘッダー横のPOINTSピルに表示）
   let leftPoints = 0, rightPoints = 0;
   // 固定幅ロック用フラグ
@@ -87,6 +89,26 @@
           // 行バッファ処理
           for (const ch of data) {
             const code = ch.charCodeAt(0);
+            // --- ANSIエスケープシーケンスを行バッファから除外（送信用）---
+            if (leftAnsiMode) {
+              if (leftAnsiMode === 'esc') {
+                // ESCの次: '[' ならCSI、そうでなければSS3相当（1文字だけ消費）
+                leftAnsiMode = (ch === '[') ? 'csi' : 'ss3';
+                continue;
+              } else if (leftAnsiMode === 'csi') {
+                // CSIの終端は @-~
+                if (code >= 64 && code <= 126) { leftAnsiMode = null; }
+                continue;
+              } else if (leftAnsiMode === 'ss3') {
+                // SS3は次の1文字で終了
+                leftAnsiMode = null;
+                continue;
+              }
+            }
+            if (code === 27) { // ESC 始まり
+              leftAnsiMode = 'esc';
+              continue;
+            }
             if (ch === '\r' || ch === '\n') {
               const cmd = leftLine.trim();
               if (cmd) {
@@ -96,13 +118,11 @@
               leftLine = '';
             } else if (ch === '\b' || code === 127) {
               leftLine = leftLine.slice(0, -1);
-            } else if (code === 27) {
-              // ESC始まりは編集/カーソル移動として無視
             } else if (code >= 32) {
               leftLine += ch;
             }
             // タイピングプレビュー送信（ESCは除外）
-            if (code !== 27) {
+            if (!leftAnsiMode && code !== 27) {
               const preview = (ch === '\r' || ch === '\n') ? '' : leftLine.slice(-24);
               socket.emit('typing_shell', { roomId, text: preview });
             }
@@ -122,6 +142,23 @@
           socket.emit('shell_input', { roomId, data });
           for (const ch of data) {
             const code = ch.charCodeAt(0);
+            // --- ANSIエスケープシーケンスを行バッファから除外（送信用）---
+            if (rightAnsiMode) {
+              if (rightAnsiMode === 'esc') {
+                rightAnsiMode = (ch === '[') ? 'csi' : 'ss3';
+                continue;
+              } else if (rightAnsiMode === 'csi') {
+                if (code >= 64 && code <= 126) { rightAnsiMode = null; }
+                continue;
+              } else if (rightAnsiMode === 'ss3') {
+                rightAnsiMode = null;
+                continue;
+              }
+            }
+            if (code === 27) { // ESC 始まり
+              rightAnsiMode = 'esc';
+              continue;
+            }
             if (ch === '\r' || ch === '\n') {
               const cmd = rightLine.trim();
               if (cmd) {
@@ -131,13 +168,11 @@
               rightLine = '';
             } else if (ch === '\b' || code === 127) {
               rightLine = rightLine.slice(0, -1);
-            } else if (code === 27) {
-              // ESC sequence -> ignore in buffer
             } else if (code >= 32) {
               rightLine += ch;
             }
             // タイピングプレビュー送信（ESCは除外）
-            if (code !== 27) {
+            if (!rightAnsiMode && code !== 27) {
               const preview = (ch === '\r' || ch === '\n') ? '' : rightLine.slice(-24);
               socket.emit('typing_shell', { roomId, text: preview });
             }
