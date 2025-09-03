@@ -116,9 +116,6 @@
     // Early boot log & global error handlers
     try { console.log('[result:boot] script tag parsed'); } catch {}
     try {
-      window.addEventListener('DOMContentLoaded', () => {
-        try { console.log('[result:boot] DOMContentLoaded'); } catch {}
-      });
       window.addEventListener('error', (e) => {
         try { console.error('[result:error] window', e?.error || e?.message || e); } catch {}
         try { const el = document.getElementById('winnerSub'); if (el) el.textContent = 'スクリプトエラーが発生しました。コンソールを確認してください。'; } catch {}
@@ -127,69 +124,70 @@
         try { console.error('[result:error] unhandledrejection', e?.reason || e); } catch {}
       });
     } catch {}
-    (function() {
-      function $(id) { return document.getElementById(id); }
-      function pad2(n) { n = Math.max(0, Math.floor(n)); return (n < 10 ? '0' : '') + n; }
-      function fmtDuration(sec) {
+    function renderResult() {
+      const $ = (id) => document.getElementById(id);
+      const pad2 = (n) => { n = Math.max(0, Math.floor(n)); return (n < 10 ? '0' : '') + n; };
+      const fmtDuration = (sec) => {
         if (typeof sec !== 'number' || !isFinite(sec) || sec < 0) return '00:00';
         const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
         return pad2(m) + ':' + pad2(s);
-      }
-      function text(el, v) { if (el) el.textContent = (v == null || v === '') ? '-' : String(v); }
+      };
+      const setText = (el, v) => { if (el) el.textContent = (v == null || v === '') ? '-' : String(v); };
 
-      let raw = null;
+      // Load payload
+      let raw = null, data = null;
       try { raw = localStorage.getItem('duelResult'); console.log('[result:load] raw', raw); } catch {}
-      let data = null;
       try { data = JSON.parse(raw || 'null'); console.log('[result:load] parsed', data); } catch (e) { try { console.log('[result:load] parse_error', e); } catch {} }
-      // フォールバック: クエリから roomId だけ反映
+
       const sp = new URLSearchParams(location.search);
       const fallbackRoomId = sp.get('roomId') || 'r1';
 
-      const roomId = (data && data.roomId) || fallbackRoomId;
-      const totalProblems = (data && (data.totalProblems ?? (Array.isArray(data.rounds) ? data.rounds.length : null))) ?? 0;
-      const durationSec = (data && typeof data.durationSec === 'number') ? data.durationSec : null;
-      const leftName = (() => { const v = data && data.leftName; const s = (v == null ? '-' : String(v)).trim(); return s || '-'; })();
-      const rightName = (() => { const v = data && data.rightName; const s = (v == null ? '-' : String(v)).trim(); return s || '-'; })();
-      const scoreLeft = (data && (data.scoreLeft ?? data.leftPoints ?? data.leftCorrect)) ?? 0;
-      const scoreRight = (data && (data.scoreRight ?? data.rightPoints ?? data.rightCorrect)) ?? 0;
-      const leftPoints = (data && (data.leftPoints ?? data.leftCorrect)) ?? (scoreLeft ?? 0);
-      const rightPoints = (data && (data.rightPoints ?? data.rightCorrect)) ?? (scoreRight ?? 0);
-      const leftCorrect = (data && (data.leftCorrect ?? data.leftPoints)) ?? 0;
-      const rightCorrect = (data && (data.rightCorrect ?? data.rightPoints)) ?? 0;
-      const leftStreak = (data && (data.leftStreak ?? 0)) ?? 0;
-      const rightStreak = (data && (data.rightStreak ?? 0)) ?? 0;
+      const rounds = Array.isArray(data?.rounds) ? data.rounds : [];
 
-      text($('#roomIdVal'), roomId);
-      text($('#totalProblems'), totalProblems);
-      text($('#setDuration'), durationSec != null ? fmtDuration(durationSec) : '00:00');
-      text($('#leftName'), leftName);
-      text($('#rightName'), rightName);
-      text($('#scoreLeft'), scoreLeft);
-      text($('#scoreRight'), scoreRight);
-      text($('#leftPoints'), leftPoints);
-      text($('#rightPoints'), rightPoints);
-      text($('#leftCorrect'), leftCorrect);
-      text($('#rightCorrect'), rightCorrect);
-      text($('#leftStreak'), leftStreak);
-      text($('#rightStreak'), rightStreak);
+      const roomId = data?.roomId || fallbackRoomId;
+      const totalProblems = (data && ('totalProblems' in data)) ? data.totalProblems : undefined;
+      const durationSec = (data && ('durationSec' in data) && (typeof data.durationSec === 'number')) ? data.durationSec : undefined;
+      const leftName = (() => { const v = data?.leftName; const s = (v == null ? '-' : String(v)).trim(); return s || '-'; })();
+      const rightName = (() => { const v = data?.rightName; const s = (v == null ? '-' : String(v)).trim(); return s || '-'; })();
+      const scoreLeft = (data && ('scoreLeft' in data)) ? data.scoreLeft : undefined;
+      const scoreRight = (data && ('scoreRight' in data)) ? data.scoreRight : undefined;
+      const leftPoints = (data && ('leftPoints' in data)) ? data.leftPoints : undefined;
+      const rightPoints = (data && ('rightPoints' in data)) ? data.rightPoints : undefined;
+      const leftCorrect = (data && ('leftCorrect' in data)) ? data.leftCorrect : undefined;
+      const rightCorrect = (data && ('rightCorrect' in data)) ? data.rightCorrect : undefined;
+      const leftStreak = (data && ('leftStreak' in data)) ? data.leftStreak : undefined;
+      const rightStreak = (data && ('rightStreak' in data)) ? data.rightStreak : undefined;
 
-      // 勝者表示
+      setText($('#roomIdVal'), roomId);
+      setText($('#totalProblems'), totalProblems);
+      setText($('#setDuration'), (typeof durationSec === 'number') ? fmtDuration(durationSec) : '-');
+      setText($('#leftName'), leftName);
+      setText($('#rightName'), rightName);
+      setText($('#scoreLeft'), scoreLeft);
+      setText($('#scoreRight'), scoreRight);
+      setText($('#leftPoints'), leftPoints);
+      setText($('#rightPoints'), rightPoints);
+      setText($('#leftCorrect'), leftCorrect);
+      setText($('#rightCorrect'), rightCorrect);
+      setText($('#leftStreak'), leftStreak);
+      setText($('#rightStreak'), rightStreak);
+
+      // Winner label
       const leftDisplayName = (leftName && leftName.trim() !== '' && leftName.trim() !== '-') ? leftName : 'Left';
       const rightDisplayName = (rightName && rightName.trim() !== '' && rightName.trim() !== '-') ? rightName : 'Right';
       let winnerStr = '';
-      if (scoreLeft > scoreRight) winnerStr = `\ud83c\udfc6 勝者: ${leftDisplayName}`;
-      else if (scoreRight > scoreLeft) winnerStr = `\ud83c\udfc6 勝者: ${rightDisplayName}`;
+      if (scoreLeft > scoreRight) winnerStr = '\ud83c\udfc6 勝者: ' + leftDisplayName;
+      else if (scoreRight > scoreLeft) winnerStr = '\ud83c\udfc6 勝者: ' + rightDisplayName;
       else winnerStr = '\ud83e\udd1d ドロー';
-      text($('#winnerTitle'), winnerStr);
-      text($('#winnerSub'), '対戦おつかれさまでした');
+      setText($('#winnerTitle'), winnerStr);
+      setText($('#winnerSub'), '対戦おつかれさまでした');
 
-      // ラウンド描画（明示的なOK/NGテキストは出さず、色ドットとタイムのみ）
+      // Rounds
       try {
         const roundsEl = document.getElementById('roundsList');
         if (roundsEl) {
           roundsEl.innerHTML = '';
-          if (data && Array.isArray(data.rounds) && data.rounds.length) {
-            for (const r of data.rounds) {
+          for (const r of rounds) {
             const qn = r.index || 0;
             const title = r.title || r.problemId || '';
             const time = (typeof r.timeSec === 'number' && isFinite(r.timeSec)) ? `${Math.round(r.timeSec * 10) / 10}s` : '';
@@ -225,11 +223,18 @@
             }
             art.appendChild(head); art.appendChild(body);
             roundsEl.appendChild(art);
-            }
           }
         }
       } catch {}
-    })();
+
+      try { console.log('[result:rendered]', { roomId, totalProblems, durationSec, scoreLeft, scoreRight, leftCorrect, rightCorrect }); } catch {}
+    }
+
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', () => { try { console.log('[result:boot] DOMContentLoaded'); } catch {} renderResult(); });
+    } else {
+      renderResult();
+    }
   </script>
 </body>
 </html>
