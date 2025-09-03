@@ -40,7 +40,10 @@
     .score { text-align:center; font-weight:900; letter-spacing:.6px; }
     .score .num { display:inline-block; font-size:44px; padding:10px 18px; border-radius:12px; border:1px solid rgba(13,243,155,.25); background:rgba(255,255,255,.05); box-shadow: 0 6px 22px rgba(13,243,155,.10); }
     .score .sep { margin: 0 8px; opacity:.8; }
-    #winnerTitle { margin-top:8px; font-size:18px; color:var(--matrix); }
+    #winnerTitle { margin-top:8px; font-size:18px; }
+    /* winner color variants */
+    .win-left { color: var(--ok); }
+    .win-right { color: var(--ng); }
     #winnerSub { margin-top:2px; color:#cfe0ff; }
 
     .rounds { margin-top:18px; display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
@@ -53,7 +56,10 @@
     .badge { font-size:12px; border-radius:999px; padding:6px 10px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); }
     .ok { color:#8ef1c6; border-color: rgba(21,197,126,0.35); }
     .ng { color:#ffc2c2; border-color: rgba(255,93,93,0.35); }
-    code.answer { display:inline-block; background:#030911; border:1px solid rgba(13,243,155,.18); border-radius:8px; padding:6px 10px; color:#a7ffdc; }
+    /* command answer color variants */
+    code.answer { display:inline-block; background:#030911; border-radius:8px; padding:6px 10px; }
+    code.answer.left { border:1px solid rgba(13,243,155,.18); color:#a7ffdc; }
+    code.answer.right { border:1px solid rgba(255,93,93,.28); color:#ffc2c2; }
     .round-body { display:grid; gap:6px; font-size:13px; }
 
     .actions { margin-top: 20px; display:flex; gap:10px; flex-wrap:wrap; }
@@ -176,10 +182,15 @@
       const leftDisplayName = (leftName && leftName.trim() !== '' && leftName.trim() !== '-') ? leftName : 'Left';
       const rightDisplayName = (rightName && rightName.trim() !== '' && rightName.trim() !== '-') ? rightName : 'Right';
       let winnerStr = '';
-      if (scoreLeft > scoreRight) winnerStr = '\ud83c\udfc6 勝者: ' + leftDisplayName;
-      else if (scoreRight > scoreLeft) winnerStr = '\ud83c\udfc6 勝者: ' + rightDisplayName;
-      else winnerStr = '\ud83e\udd1d ドロー';
-      setText($('#winnerTitle'), winnerStr);
+      let winnerSeat = 'draw';
+      if (scoreLeft > scoreRight) { winnerStr = '\ud83c\udfc6 勝者: ' + leftDisplayName; winnerSeat = 'left'; }
+      else if (scoreRight > scoreLeft) { winnerStr = '\ud83c\udfc6 勝者: ' + rightDisplayName; winnerSeat = 'right'; }
+      else { winnerStr = '\ud83e\udd1d ドロー'; }
+      const wt = $('#winnerTitle');
+      setText(wt, winnerStr);
+      try {
+        if (wt) { wt.classList.remove('win-left','win-right'); if (winnerSeat === 'left') wt.classList.add('win-left'); if (winnerSeat === 'right') wt.classList.add('win-right'); }
+      } catch {}
       setText($('#winnerSub'), '対戦おつかれさまでした');
 
       // Rounds
@@ -218,7 +229,7 @@
             if (cmd) {
               const row = document.createElement('div');
               const lab = document.createElement('span'); lab.className = 'label'; lab.textContent = '答え';
-              const code = document.createElement('code'); code.className = 'answer'; code.textContent = cmd;
+              const code = document.createElement('code'); code.className = 'answer' + (okSeat === 'right' ? ' right' : ' left'); code.textContent = cmd;
               row.appendChild(lab); row.appendChild(code); body.appendChild(row);
             }
             art.appendChild(head); art.appendChild(body);
