@@ -633,6 +633,7 @@ io.on('connection', (socket: Socket) => {
           const effPath = path.join(repoRoot, effScript);
           const mod = await import(pathToFileURL(effPath).href);
           const validator = (mod.default || mod.validate || mod) as (ctx: { fs: JudgeFS; exec: ExecResult }) => Promise<{ pass: boolean; reason?: string }>;
+          const effectiveWorkDir = hostWorkDir || runner?.workDir; // フォールバックでランナーのworkDirを利用
           const judgeFs: JudgeFS = {
             readFile: async (p: string) => {
               if (scenarioDir && p.startsWith('/scenario')) {
@@ -640,10 +641,10 @@ io.on('connection', (socket: Socket) => {
                 if (rel.startsWith('/')) rel = rel.slice(1);
                 return fs.readFile(path.join(scenarioDir, rel), 'utf8');
               }
-              if (hostWorkDir && p.startsWith('/work')) {
+              if (effectiveWorkDir && p.startsWith('/work')) {
                 let rel = p.slice('/work'.length);
                 if (rel.startsWith('/')) rel = rel.slice(1);
-                return fs.readFile(path.join(hostWorkDir, rel), 'utf8');
+                return fs.readFile(path.join(effectiveWorkDir, rel), 'utf8');
               }
               throw new Error('FS readFile not supported for path: ' + p);
             },
@@ -653,10 +654,10 @@ io.on('connection', (socket: Socket) => {
                 if (rel.startsWith('/')) rel = rel.slice(1);
                 try { await fs.access(path.join(scenarioDir, rel)); return true; } catch { return false; }
               }
-              if (hostWorkDir && p.startsWith('/work')) {
+              if (effectiveWorkDir && p.startsWith('/work')) {
                 let rel = p.slice('/work'.length);
                 if (rel.startsWith('/')) rel = rel.slice(1);
-                try { await fs.access(path.join(hostWorkDir, rel)); return true; } catch { return false; }
+                try { await fs.access(path.join(effectiveWorkDir, rel)); return true; } catch { return false; }
               }
               return false;
             },
