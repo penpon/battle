@@ -151,6 +151,15 @@
     }
   }
 
+  // 自席のターミナルへ積極的にフォーカス（クリック不要化）
+  function focusMyTerminal() {
+    try {
+      ensureTerms();
+      if (mySeat === 'left' && leftTerm) { leftTerm.focus(); }
+      else if (mySeat === 'right' && rightTerm) { rightTerm.focus(); }
+    } catch {}
+  }
+
   // 難易度ごとのプリセット（ここは既存ID方針に合わせる）
   const PRESETS = {
     Starter: ['starter-01','starter-02','starter-03','starter-04','starter-05'],
@@ -205,6 +214,8 @@
     // アニメ用クラスをリセット
     ov.classList.remove('win', 'win-left', 'win-right');
     if (bn) bn.classList.remove('win', 'countdown', 'cd-1', 'cd-2', 'cd-3');
+    // オーバーレイで奪われたフォーカスを戻す
+    try { focusMyTerminal(); } catch {}
   }
 
   // 正解時の全画面撃破アニメーション
@@ -298,6 +309,8 @@
       if (!countdownDone && myRole) {
         countdownDone = true;
         await runCountdown(3);
+        // カウントダウン終了後に自席ターミナルへフォーカス
+        try { focusMyTerminal(); } catch {}
       }
       // オートスタート: オーナーかつクエリ指定がある/補完可能な場合に一度だけ開始（カウントダウン後）
       try {
@@ -320,6 +333,9 @@
       setIndex(0, p.total);
       setPhase('question');
       clearLogs(); hideOverlay();
+      // 端末を用意し即フォーカス
+      ensureTerms();
+      try { focusMyTerminal(); } catch {}
       // セット開始時にポイントをリセット
       leftPoints = 0; rightPoints = 0; renderPoints();
     });
@@ -417,15 +433,16 @@
         stderr: v.stderr ?? '',
       };
       const line = JSON.stringify(rec, null, 2) + '\n';
-      // 常に自席(mySeat)のログ枠のみに出力（相手枠へは出力しない）
+      // 席ごとのログ枠へ出力（相手の結果は相手側のログへ）
       let targetLog = null;
-      if (mySeat === 'left') targetLog = $('leftLog');
+      if (v.seat === 'left') targetLog = $('leftLog');
+      else if (v.seat === 'right') targetLog = $('rightLog');
+      else if (mySeat === 'left') targetLog = $('leftLog');
       else if (mySeat === 'right') targetLog = $('rightLog');
-      else targetLog = null; // spectator 等は未出力
       if (targetLog) { targetLog.textContent += line; targetLog.scrollTop = targetLog.scrollHeight; }
       const badge = v.ok ? 'v-ok' : 'v-ng';
-      $('leftVerdict').className = `verdict ${badge}`; $('leftVerdict').textContent = v.ok ? 'OK' : 'NG';
-      $('rightVerdict').className = `verdict ${badge}`; $('rightVerdict').textContent = v.ok ? 'OK' : 'NG';
+      if (v.seat === 'left') { $('leftVerdict').className = `verdict ${badge}`; $('leftVerdict').textContent = v.ok ? 'OK' : 'NG'; }
+      else if (v.seat === 'right') { $('rightVerdict').className = `verdict ${badge}`; $('rightVerdict').textContent = v.ok ? 'OK' : 'NG'; }
       // どちらの席からの実行かに応じて、その端末に stdout+stderr を表示（実シェルに近づける）
       // ただし、インタラクティブシェル稼働中の席は shell_stream による表示があるため、重複表示を避ける目的で verdict からの書き込みは抑止する。
       try {
@@ -658,6 +675,12 @@
         if (rightLogEl && rightLogEl.classList.contains('expanded')) collapseLog(rightLogEl, rightBtnEl);
       } catch {}
     }
+  });
+
+  // ウィンドウがフォーカス/表示復帰したら自席の端末へフォーカス
+  window.addEventListener('focus', () => { try { focusMyTerminal(); } catch {} });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') { try { focusMyTerminal(); } catch {} }
   });
 
   // Checkボタンは廃止（Enterで送信）
