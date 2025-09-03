@@ -50,6 +50,7 @@
     /* Header C (Sleek Underline) points chip */
     .points { display:flex; align-items:center; gap:8px; font-weight:900; color:#cfe0ff; }
     .points .pill { padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.06); }
+    .name-row { display:flex; align-items:center; gap:10px; }
     /* hide verdict badges in header but keep in DOM for JS */
     h3 .verdict { display:none; }
     /* Header name badge design proposals */
@@ -182,8 +183,10 @@
       <div class="terminal card" id="leftPane">
         <h3>
           <div class="pulse green">
-            <span class="name" id="leftName">-</span>
-            <span class="points" id="leftPoints"><span>POINTS</span> <span class="pill" id="leftPointsVal">0</span></span>
+            <div class="name-row">
+              <span class="name" id="leftName">-</span>
+              <span class="points" id="leftPoints"><span>POINTS</span> <span class="pill" id="leftPointsVal">0</span></span>
+            </div>
             <span class="bar"></span>
             <span id="leftVerdict" class="verdict"></span>
           </div>
@@ -197,8 +200,10 @@
       <div class="terminal card" id="rightPane">
         <h3>
           <div class="pulse red">
-            <span class="name" id="rightName">-</span>
-            <span class="points" id="rightPoints"><span>POINTS</span> <span class="pill" id="rightPointsVal">0</span></span>
+            <div class="name-row">
+              <span class="name" id="rightName">-</span>
+              <span class="points" id="rightPoints"><span>POINTS</span> <span class="pill" id="rightPointsVal">0</span></span>
+            </div>
             <span class="bar"></span>
             <span id="rightVerdict" class="verdict"></span>
           </div>
