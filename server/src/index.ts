@@ -85,6 +85,8 @@ const interactiveSessions = new Map<string, {
   idleTimer?: NodeJS.Timeout;
   hardTimer?: NodeJS.Timeout;
 }>();
+// インタラクティブシェルの起動中フラグ（socket.id 単位）
+const interactiveStarting = new Set<string>();
 
 // タイムアウト設定とクリーンアップヘルパ
 const INTERACTIVE_IDLE_MS = 30000; // 入力・出力が無い場合のアイドルタイムアウト
@@ -135,12 +137,13 @@ async function removeQuestionRunner(roomId: string) {
   questionRunners.delete(roomId);
 }
 
-function startIntervalPhase(roomId: string, state: RoomState, sec: number) {
+async function startIntervalPhase(roomId: string, state: RoomState, sec: number) {
   state.phase = 'interval';
   // フェーズ遷移時は部屋のインタラクティブセッションを終了
   // 非同期で実行し、フェーズ管理の進行は阻害しない
-  void closeRoomInteractiveSessions(roomId, 'phase_change');
-  void removeQuestionRunner(roomId);
+  // ここは次フェーズ開始前に確実に閉じる（PS1二重出力対策）
+  try { await closeRoomInteractiveSessions(roomId, 'phase_change'); } catch {}
+  try { await removeQuestionRunner(roomId); } catch {}
   // 前問の /work をクリーンアップ
   try { if (state.hostWorkDir) { void fs.rm(state.hostWorkDir, { recursive: true, force: true }); state.hostWorkDir = undefined; } } catch {}
   state.remainingSec = sec;
@@ -424,15 +427,18 @@ io.on('connection', (socket: Socket) => {
       else if (seatsMap?.right === socket.id) seat = 'right';
 
       // 既存セッションがあれば無視（あるいは再利用）
-      if (interactiveSessions.has(socket.id)) {
+      if (interactiveSessions.has(socket.id) || interactiveStarting.has(socket.id)) {
         // 既存セッション再利用時も座席付きで通知（UIの整合性のため）
         broadcast(roomId, 'shell_started', { ok: true, seat });
         return;
       }
+      // 起動中マーキング（二重起動防止）
+      interactiveStarting.add(socket.id);
 
       const state = roomStates.get(roomId);
       if (!state || state.phase !== 'question') {
         broadcast(roomId, 'shell_stream', { seat, data: '\n[not_in_question]\n' });
+        interactiveStarting.delete(socket.id);
         return;
       }
       const problemId = state.problems[state.qIndex];
@@ -487,9 +493,13 @@ io.on('connection', (socket: Socket) => {
       rec.idleTimer = setTimeout(() => { void closeInteractiveSession(socket.id, 'idle_timeout'); }, INTERACTIVE_IDLE_MS);
       rec.hardTimer = setTimeout(() => { void closeInteractiveSession(socket.id, 'hard_timeout'); }, INTERACTIVE_HARD_MS);
       interactiveSessions.set(socket.id, rec);
+      // 起動中フラグを解除
+      interactiveStarting.delete(socket.id);
       broadcast(roomId, 'shell_started', { ok: true, seat });
     } catch {
       socket.emit('shell_started', { ok: false });
+      // 失敗時も起動中フラグを解除
+      try { interactiveStarting.delete(socket.id); } catch {}
       if (hostWorkDir) { try { await fs.rm(hostWorkDir, { recursive: true, force: true }); } catch {} }
     }
   });
