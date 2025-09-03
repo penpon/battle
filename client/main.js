@@ -203,7 +203,16 @@
       const bn = document.querySelector('#overlay .banner');
       // 文言
       $('overlayTitle').textContent = '撃破!';
-      $('overlayDesc').textContent = seat === 'left' ? 'Left Wins!' : (seat === 'right' ? 'Right Wins!' : '');
+      // 勝者名（room_status で #leftName/#rightName に反映済み）を優先的に使用
+      let displayName = '';
+      if (seat === 'left') {
+        const ln = document.getElementById('leftName');
+        displayName = (ln && ln.textContent && ln.textContent.trim() && ln.textContent.trim() !== '-') ? ln.textContent.trim() : 'Left';
+      } else if (seat === 'right') {
+        const rn = document.getElementById('rightName');
+        displayName = (rn && rn.textContent && rn.textContent.trim() && rn.textContent.trim() !== '-') ? rn.textContent.trim() : 'Right';
+      }
+      $('overlayDesc').textContent = displayName ? `${displayName} Wins!` : '';
       // クラス設定（座席色）
       ov.classList.add('win');
       if (seat === 'left') ov.classList.add('win-left');
@@ -303,7 +312,16 @@
       // セット開始時にポイントをリセット
       leftPoints = 0; rightPoints = 0; renderPoints();
     });
-    socket.on('set_end', () => { setPhase('idle'); hideOverlay(); stopInteractive(); });
+    socket.on('set_end', (p) => {
+      // サーバ集計結果を保存し、リザルトへ遷移
+      try {
+        const roomId = ($('roomId') && $('roomId').value && $('roomId').value.trim()) || (p && p.roomId) || 'r1';
+        const payload = Object.assign({}, (p || {}), { roomId });
+        localStorage.setItem('duelResult', JSON.stringify(payload));
+      } catch {}
+      setPhase('idle'); hideOverlay(); stopInteractive();
+      try { window.location.href = './result.html'; } catch {}
+    });
     socket.on('set_cancelled', () => { setPhase('idle'); hideOverlay(); stopInteractive(); });
 
     socket.on('question_start', (p) => {
