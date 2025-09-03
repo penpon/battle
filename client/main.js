@@ -316,7 +316,30 @@
       // サーバ集計結果を保存し、リザルトへ遷移
       try {
         const roomId = ($('roomId') && $('roomId').value && $('roomId').value.trim()) || (p && p.roomId) || 'r1';
-        const payload = Object.assign({}, (p || {}), { roomId });
+        // UI上の表示名・ローカル集計ポイントをフォールバックとして取り込む（サーバ側の欠損やレース対策）
+        const lnEl = document.getElementById('leftName');
+        const rnEl = document.getElementById('rightName');
+        const uiLeftName = (lnEl && lnEl.textContent && lnEl.textContent.trim()) ? lnEl.textContent.trim() : '';
+        const uiRightName = (rnEl && rnEl.textContent && rnEl.textContent.trim()) ? rnEl.textContent.trim() : '';
+        const safeName = (s, fallback) => {
+          try {
+            const t = (s == null ? '' : String(s)).trim();
+            const f = (fallback == null ? '' : String(fallback)).trim();
+            return t || f || null;
+          } catch { return fallback || null; }
+        };
+        const payload = Object.assign({}, (p || {}), {
+          roomId,
+          leftName: safeName(p?.leftName, uiLeftName),
+          rightName: safeName(p?.rightName, uiRightName),
+          // 欠損時の安全な数値フォールバック（ローカル集計を使用）
+          scoreLeft: (p && (p.scoreLeft ?? p.leftPoints ?? p.leftCorrect ?? null)) ?? (leftPoints|0),
+          scoreRight: (p && (p.scoreRight ?? p.rightPoints ?? p.rightCorrect ?? null)) ?? (rightPoints|0),
+          leftPoints: (p && (p.leftPoints ?? p.leftCorrect ?? null)) ?? (leftPoints|0),
+          rightPoints: (p && (p.rightPoints ?? p.rightCorrect ?? null)) ?? (rightPoints|0),
+          leftCorrect: (p && (p.leftCorrect ?? p.leftPoints ?? null)) ?? (leftPoints|0),
+          rightCorrect: (p && (p.rightCorrect ?? p.rightPoints ?? null)) ?? (rightPoints|0),
+        });
         localStorage.setItem('duelResult', JSON.stringify(payload));
       } catch {}
       setPhase('idle'); hideOverlay(); stopInteractive();
