@@ -125,7 +125,7 @@
       });
     } catch {}
     function renderResult() {
-      const $ = (id) => document.getElementById(id);
+      const $ = (id) => document.getElementById((typeof id === 'string' && id.startsWith('#')) ? id.slice(1) : id);
       const pad2 = (n) => { n = Math.max(0, Math.floor(n)); return (n < 10 ? '0' : '') + n; };
       const fmtDuration = (sec) => {
         if (typeof sec !== 'number' || !isFinite(sec) || sec < 0) return '00:00';
