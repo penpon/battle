@@ -341,6 +341,8 @@
           rightCorrect: (p && (p.rightCorrect ?? p.rightPoints ?? null)) ?? (rightPoints|0),
         });
         localStorage.setItem('duelResult', JSON.stringify(payload));
+        try { console.log('[result:set_end] payload', payload); } catch {}
+        try { console.log('[result:set_end] savedToLocalStorage', !!localStorage.getItem('duelResult')); } catch {}
       } catch {}
       setPhase('idle'); hideOverlay(); stopInteractive();
       try { window.location.href = './result.html'; } catch {}
