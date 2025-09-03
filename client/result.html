@@ -113,6 +113,20 @@
     </section>
   </main>
   <script>
+    // Early boot log & global error handlers
+    try { console.log('[result:boot] script tag parsed'); } catch {}
+    try {
+      window.addEventListener('DOMContentLoaded', () => {
+        try { console.log('[result:boot] DOMContentLoaded'); } catch {}
+      });
+      window.addEventListener('error', (e) => {
+        try { console.error('[result:error] window', e?.error || e?.message || e); } catch {}
+        try { const el = document.getElementById('winnerSub'); if (el) el.textContent = 'スクリプトエラーが発生しました。コンソールを確認してください。'; } catch {}
+      });
+      window.addEventListener('unhandledrejection', (e) => {
+        try { console.error('[result:error] unhandledrejection', e?.reason || e); } catch {}
+      });
+    } catch {}
     (function() {
       function $(id) { return document.getElementById(id); }
       function pad2(n) { n = Math.max(0, Math.floor(n)); return (n < 10 ? '0' : '') + n; }
