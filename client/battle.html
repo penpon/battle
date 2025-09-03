@@ -5,12 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Terminal Takedown - Battle UI</title>
   <style>
-    :root { --bg:#0b1020; --panel:#0f152b; --card:#121a34; --text:#e8ecf7; --muted:#a9b3cf; --ok:#15c57e; --ng:#ff5d5d; --accent:#5b8cff; }
+    :root { --bg:#050a12; --panel:#0f152b; --card:#121a34; --text:#e8ecf7; --muted:#a9b3cf; --ok:#15c57e; --ng:#ff5d5d; --accent:#5b8cff; }
     * { box-sizing: border-box; }
-    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans JP', sans-serif; color: var(--text); background: linear-gradient(180deg, #0a0f20, #0b1226 40%, #0b132a); }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans JP', sans-serif; color: var(--text); background: var(--bg); }
     header { padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(10,16,32,0.6); position: sticky; top:0; backdrop-filter: blur(6px); }
     h1 { margin: 0; font-size: 18px; letter-spacing: .5px; color: #fff; }
     main { padding: 16px 20px; max-width: 1200px; margin: 0 auto; }
+    /* Matrix background */
+    .matrix { position: fixed; inset:0; pointer-events:none; opacity:.18; background-image: repeating-linear-gradient(0deg, rgba(13,243,155,.15) 0 1px, transparent 1px 40px), repeating-linear-gradient(90deg, rgba(13,243,155,.1) 0 1px, transparent 1px 40px); }
+    .scan { position: fixed; inset:0; pointer-events:none; background: linear-gradient(180deg, transparent, rgba(13,243,155,.05), transparent); animation: scan 5s linear infinite; }
+    @keyframes scan { 0% { transform: translateY(-100%);} 100% { transform: translateY(100%);} }
     .controls { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; margin-bottom: 16px; }
     .card { background: var(--card); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px; }
     .row { display:flex; gap:10px; align-items:center; margin:8px 0; }
@@ -130,6 +134,19 @@
     .banner.win p { font-size: 16px; color:#dfe8ff; opacity:.95; margin-top:6px; }
     @keyframes winPop { 0% { opacity: 0; transform: scale(.9); filter: blur(2px); } 100% { opacity: 1; transform: scale(1); filter: blur(0); } }
     @keyframes winBackdrop { 0% { background: rgba(0,0,0,0.0); } 100% { background: rgba(0,0,0,0.55); } }
+  /* Timer-3 (Green Hack style) */
+  .problem-row { display: grid; grid-template-columns: 1fr 300px; gap: 12px; align-items: stretch; }
+  @media (max-width: 900px) { .problem-row { grid-template-columns: 1fr; } }
+  .timer3 { display:flex; flex-direction:column; gap:10px; padding:12px; }
+  .timer3 .t3-head { display:flex; justify-content:space-between; align-items:baseline; }
+  .timer3 .t3-title { font-size:12px; letter-spacing:.3px; color:#9ddfbf; }
+  .timer3 .t3-time { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight:900; font-size:18px; color:#8ef1c6; text-shadow: 0 0 12px rgba(21,197,126,0.35); }
+  .timer3 .t3-bar { position:relative; height:14px; border-radius:10px; background: #071028; border:1px solid rgba(21,197,126,0.25); overflow:hidden; box-shadow: inset 0 0 10px rgba(21,197,126,0.15); }
+  .timer3 .t3-fill { position:absolute; inset:0 auto 0 0; height:100%; width:0%; background: linear-gradient(90deg, rgba(21,197,126,0.9), rgba(142,241,198,0.9)); box-shadow: 0 0 20px rgba(21,197,126,0.35); transition: width 200ms linear; }
+  .timer3 .t3-scan { position:absolute; top:0; height:100%; width:40%; left:-40%; background: linear-gradient(90deg, rgba(21,197,126,0), rgba(21,197,126,0.55), rgba(21,197,126,0)); mix-blend-mode: screen; filter: blur(0.3px); animation: t3scan 1.6s linear infinite; }
+  @keyframes t3scan { 0% { left:-45%; } 100% { left:105%; } }
+  .timer3.inactive .t3-fill { width:0%; background: linear-gradient(90deg, rgba(120,150,130,0.6), rgba(160,190,170,0.6)); box-shadow:none; }
+  .timer3.inactive .t3-time { color:#b8c3e3; text-shadow:none; }
   </style>
   <script src="/socket.io/socket.io.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
@@ -137,6 +154,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
 </head>
 <body>
+  <div class="matrix"></div><div class="scan"></div>
   <header>
     <h1>Terminal Takedown</h1>
   </header>
@@ -176,7 +194,19 @@
 
     <div class="problem">
       <h2>問題</h2>
-      <div id="statement" class="statement">-</div>
+      <div class="problem-row">
+        <div id="statement" class="statement">-</div>
+        <div class="timer3 card" id="questionTimer" aria-label="Question timer">
+          <div class="t3-head">
+            <span class="t3-title">TIMER</span>
+            <span class="t3-time" id="qtTime">-</span>
+          </div>
+          <div class="t3-bar">
+            <div class="t3-fill" id="qtFill"></div>
+            <div class="t3-scan"></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="battle">
@@ -222,5 +252,58 @@
 
   <script src="./main.js"></script>
   <script src="./audio.js"></script>
-</body>
-</html>
+  <script>
+    (() => {
+      const $ = (id) => document.getElementById(id);
+      const phaseEl = document.getElementById('phase');
+      const remainEl = document.getElementById('remain');
+      const timerEl = document.getElementById('questionTimer');
+      const timeText = document.getElementById('qtTime');
+      const fillEl = document.getElementById('qtFill');
+      if (!timerEl || !remainEl || !phaseEl || !timeText || !fillEl) return;
+      let totalSec = 0;
+      let lastRemain = null;
+      function toNum(s) {
+        const n = Number((s||'').toString().replace(/[^0-9.-]/g,''));
+        return Number.isFinite(n) ? n : 0;
+      }
+      function setInactive(on) {
+        try { timerEl.classList.toggle('inactive', !!on); } catch {}
+      }
+      function update(remain) {
+        if (!Number.isFinite(remain)) remain = 0;
+        if (!totalSec || remain > totalSec) totalSec = remain;
+        const ratio = totalSec ? Math.max(0, Math.min(1, remain / totalSec)) : 0;
+        fillEl.style.width = (ratio * 100).toFixed(2) + '%';
+        timeText.textContent = String(Math.max(0, Math.floor(remain))) + 's';
+      }
+      // 初期反映
+      const initPhase = (phaseEl.textContent||'').trim();
+      const initRemain = toNum(remainEl.textContent);
+      if (initPhase === 'question' && initRemain > 0) { totalSec = initRemain; setInactive(false); update(initRemain); }
+      else { setInactive(true); update(0); }
+      const onRemainChange = () => {
+        const phase = (phaseEl.textContent||'').trim();
+        const r = toNum(remainEl.textContent);
+        if (phase === 'question') {
+          if (lastRemain !== null && r > lastRemain) { totalSec = r; }
+          if (!totalSec) totalSec = r || totalSec;
+          setInactive(false); update(r); lastRemain = r;
+        } else { setInactive(true); update(0); lastRemain = r; }
+      };
+      const onPhaseChange = () => {
+        const phase = (phaseEl.textContent||'').trim();
+        if (phase === 'question') {
+          const r = toNum(remainEl.textContent);
+          if (r > 0) { totalSec = r; setInactive(false); update(r); lastRemain = r; }
+          else { setInactive(false); }
+        } else { setInactive(true); update(0); }
+      };
+      const mo1 = new MutationObserver(onRemainChange);
+      const mo2 = new MutationObserver(onPhaseChange);
+      mo1.observe(remainEl, { childList:true, subtree:true, characterData:true });
+      mo2.observe(phaseEl, { childList:true, subtree:true, characterData:true });
+    })();
+  </script>
+  </body>
+  </html>
