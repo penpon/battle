@@ -1,0 +1,42 @@
+{
+  "presets": {
+    "basic_safety": [
+      "^\\s*rm\\s+-(?:[^\\s]*r[^\\s]*f|[rf]+)\\b\\s+/(?:\\s|$)",
+      "^\\s*rm\\s+-(?:[^\\s]*r[^\\s]*f|[rf]+)[^\\n]*\\s+/(?:bin|sbin|etc|usr|lib(?:64)?|proc|sys|dev|var|home)(?:\\b|/)",
+      "^\\s*rm\\s+[^\\n]*--no-preserve-root\\b",
+
+      "^\\s*.*>\\s*/etc/.*",
+      "^\\s*.*>>\\s*/etc/.*",
+      "^\\s*tee\\b[^\\n]*/etc/",
+      "^\\s*sed\\b[^\\n]*-i\\b[^\\n]*/etc/",
+
+      "^\\s*dd\\b[^\\n]*\\bof=/dev/(?:sd[a-z]+|hd[a-z]+|vd[a-z]+|nvme\\d+n\\d+(?:p\\d+)?|mapper/\\S+)",
+      "^\\s*mkfs\\.[a-z0-9]+\\b",
+      "^\\s*(mkswap|swapon|swapoff)\\b",
+      "^\\s*(parted|sfdisk|fdisk|wipefs|blkdiscard)\\b",
+      "^\\s*mknod\\b",
+
+      "^\\s*(mount|umount|losetup)\\b",
+      "^\\s*chroot\\b",
+      "^\\s*(reboot|shutdown|halt|poweroff)\\b",
+
+      "^\\s*kill\\s+-(?:9|SIGKILL)\\s+-1\\b",
+      "^\\s*(killall|pkill)\\s+-(?:9|SIGKILL)\\b",
+      "^\\s*:\\(\\)\\s*\\{\\s*:\\|:&\\s*\\};:\\s*$",
+      "^\\s*yes\\b",
+      "^\\s*cat\\s+/dev/urandom\\b",
+
+      "^\\s*chmod\\s+-R\\s+7[0-7][0-7]\\s+/(?:\\s|$)",
+      "^\\s*chown\\s+-R\\s+\\S+\\s+/(?:\\s|$)",
+
+      "^\\s*find\\s+/\\s+.*\\b-delete\\b",
+      "^\\s*find\\s+/\\s+.*\\b-exec\\s+rm\\s+-(?:[^\\s]*r[^\\s]*f|[rf]+)\\s+\\{\\}\\s*;",
+
+      "^\\s*(insmod|rmmod|modprobe)\\b",
+      "^\\s*(systemctl|service)\\b",
+      "^\\s*docker\\b",
+      "^\\s*sysctl\\s+-w\\b"
+    ]
+  },
+  "note": "ネットワーク/外部依存は除外。Linuxコマンドクイズの頻出操作は阻害しない方針の安全プリセット。"
+}
