@@ -59,7 +59,7 @@
       // 重要: ページ遷移前にソケットを明示切断して席を解放（レース防止）
       try { if (socket) socket.disconnect(); } catch {}
       // サーバ側の disconnect 反映時間を確保してから遷移
-      setTimeout(() => { window.location.href = `./?${params.toString()}`; }, 120);
+      setTimeout(() => { window.location.href = `./battle.html?${params.toString()}`; }, 120);
     });
 
     return socket;
