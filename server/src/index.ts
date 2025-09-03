@@ -633,7 +633,7 @@ io.on('connection', (socket: Socket) => {
           const effPath = path.join(repoRoot, effScript);
           const mod = await import(pathToFileURL(effPath).href);
           const validator = (mod.default || mod.validate || mod) as (ctx: { fs: JudgeFS; exec: ExecResult }) => Promise<{ pass: boolean; reason?: string }>;
-          const effectiveWorkDir = hostWorkDir || runner?.workDir; // フォールバックでランナーのworkDirを利用
+          const effectiveWorkDir = (runner?.workDir) || hostWorkDir; // コンテナの /work 実体を優先
           const judgeFs: JudgeFS = {
             readFile: async (p: string) => {
               if (scenarioDir && p.startsWith('/scenario')) {
@@ -641,10 +641,37 @@ io.on('connection', (socket: Socket) => {
                 if (rel.startsWith('/')) rel = rel.slice(1);
                 return fs.readFile(path.join(scenarioDir, rel), 'utf8');
               }
-              if (effectiveWorkDir && p.startsWith('/work')) {
-                let rel = p.slice('/work'.length);
-                if (rel.startsWith('/')) rel = rel.slice(1);
-                return fs.readFile(path.join(effectiveWorkDir, rel), 'utf8');
+              if (p.startsWith('/work')) {
+                // 1) ランナーがあればコンテナ内の実体を優先的に読む（bindされていない/tmpfsでも取得可）
+                if (runner?.container) {
+                  try {
+                    const q = p.replace(/'/g, "'\\''");
+                    const exec = await runner.container.exec({ Cmd: ['/bin/sh', '-lc', `cat '${q}'`], AttachStdout: true, AttachStderr: true, Tty: true });
+                    const out = await new Promise<{ data: string; rc: number }>(async (resolve) => {
+                      try {
+                        const stream = await exec.start({ Detach: false, Tty: true } as any);
+                        const chunks: Buffer[] = [];
+                        stream.on('data', (d: Buffer) => chunks.push(Buffer.from(d)));
+                        stream.on('end', async () => {
+                          try {
+                            const info = await exec.inspect();
+                            resolve({ data: Buffer.concat(chunks).toString('utf8'), rc: info.ExitCode ?? 1 });
+                          } catch {
+                            resolve({ data: Buffer.concat(chunks).toString('utf8'), rc: 0 });
+                          }
+                        });
+                        stream.on('error', () => resolve({ data: '', rc: 1 }));
+                      } catch { resolve({ data: '', rc: 1 }); }
+                    });
+                    if (out.rc === 0) return out.data; // 空ファイルでも '' を返す
+                  } catch {}
+                }
+                // 2) ホストマウントがあればホスト側から読む
+                if (effectiveWorkDir) {
+                  let rel = p.slice('/work'.length);
+                  if (rel.startsWith('/')) rel = rel.slice(1);
+                  return fs.readFile(path.join(effectiveWorkDir, rel), 'utf8');
+                }
               }
               throw new Error('FS readFile not supported for path: ' + p);
             },
@@ -654,10 +681,32 @@ io.on('connection', (socket: Socket) => {
                 if (rel.startsWith('/')) rel = rel.slice(1);
                 try { await fs.access(path.join(scenarioDir, rel)); return true; } catch { return false; }
               }
-              if (effectiveWorkDir && p.startsWith('/work')) {
-                let rel = p.slice('/work'.length);
-                if (rel.startsWith('/')) rel = rel.slice(1);
-                try { await fs.access(path.join(effectiveWorkDir, rel)); return true; } catch { return false; }
+              if (p.startsWith('/work')) {
+                // 1) ランナーがあればコンテナ内で確定的にOK/NGを印字させて判定
+                if (runner?.container) {
+                  try {
+                    const q = p.replace(/'/g, "'\\''");
+                    const cmd = `if [ -e '${q}' ]; then echo __EXIST__; else echo __MISSING__; fi`;
+                    const exec = await runner.container.exec({ Cmd: ['/bin/sh', '-lc', cmd], AttachStdout: true, AttachStderr: true, Tty: true });
+                    const out = await new Promise<string>(async (resolve) => {
+                      try {
+                        const stream = await exec.start({ Detach: false, Tty: true } as any);
+                        const chunks: Buffer[] = [];
+                        stream.on('data', (d: Buffer) => chunks.push(Buffer.from(d)));
+                        stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+                        stream.on('error', () => resolve(''));
+                      } catch { resolve(''); }
+                    });
+                    if (out.includes('__EXIST__')) return true;
+                  } catch {}
+                }
+                // 2) ホストマウントがあればホスト側で確認
+                if (effectiveWorkDir) {
+                  let rel = p.slice('/work'.length);
+                  if (rel.startsWith('/')) rel = rel.slice(1);
+                  try { await fs.access(path.join(effectiveWorkDir, rel)); return true; } catch { return false; }
+                }
+                return false;
               }
               return false;
             },
@@ -693,12 +742,11 @@ io.on('connection', (socket: Socket) => {
           } catch {}
           if (Array.isArray(rx.deny)) denySources.push(...rx.deny);
 
+          // 方針: effect がある場合は deny のみ、effect が無い場合は allow/deny 両方を適用
           if (effScript) {
-            // 効果検証がある: 危険コマンドの拒否のみ（deny）を適用
             allow = undefined;
             deny = denySources.length ? denySources.map((s: string) => new RegExp(s)) : undefined;
           } else {
-            // 効果検証が無い: 従来通り allow/deny 双方を適用
             allow = Array.isArray(rx.allow) ? rx.allow.map((s: string) => new RegExp(s)) : undefined;
             deny = denySources.length ? denySources.map((s: string) => new RegExp(s)) : undefined;
           }
