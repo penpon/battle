@@ -54,6 +54,19 @@ interface RoomState {
   problemObjs?: Record<string, any>;
   // Reuse /work mount per question to avoid mkdtemp on every submit
   hostWorkDir?: string;
+  // --- Result aggregation ---
+  rounds?: Array<{
+    index: number;
+    problemId: string;
+    title?: string;
+    okSeat: 'left' | 'right' | 'none';
+    command?: string;
+    timeSec?: number;
+  }>;
+  // timing helpers
+  questionSecTotal?: number;
+  questionStartAt?: number; // ms epoch
+  setStartAt?: number; // ms epoch
 }
 const roomStates = new Map<string, RoomState>();
 // 質問中に使い回すランナーコンテナ（roomId単位）
@@ -143,7 +156,43 @@ function startIntervalPhase(roomId: string, state: RoomState, sec: number) {
       state.qIndex += 1;
       if (state.qIndex >= state.problems.length) {
         state.phase = 'idle';
-        broadcast(roomId, 'set_end', { roomId });
+        // 集計
+        const rounds = Array.isArray(state.rounds) ? state.rounds : [];
+        let leftCorrect = 0, rightCorrect = 0;
+        let leftStreak = 0, rightStreak = 0;
+        let curLeft = 0, curRight = 0;
+        for (const r of rounds) {
+          if (r.okSeat === 'left') { leftCorrect++; curLeft++; curRight = 0; }
+          else if (r.okSeat === 'right') { rightCorrect++; curRight++; curLeft = 0; }
+          else { curLeft = 0; curRight = 0; }
+          if (curLeft > leftStreak) leftStreak = curLeft;
+          if (curRight > rightStreak) rightStreak = curRight;
+        }
+        const leftPoints = leftCorrect;
+        const rightPoints = rightCorrect;
+        const scoreLeft = leftCorrect;
+        const scoreRight = rightCorrect;
+        // 名前取得
+        let leftName: string | null = null; let rightName: string | null = null;
+        try {
+          const seats = roomSeats.get(roomId);
+          leftName = seats?.leftName || null; rightName = seats?.rightName || null;
+        } catch {}
+        const totalProblems = state.problems.length;
+        const durationSec = state.setStartAt ? Math.max(0, Math.floor((Date.now() - state.setStartAt) / 1000)) : null;
+        // 送信
+        broadcast(roomId, 'set_end', {
+          roomId,
+          difficulty: state.difficulty || null,
+          totalProblems,
+          durationSec,
+          leftName, rightName,
+          leftPoints, rightPoints,
+          leftCorrect, rightCorrect,
+          leftStreak, rightStreak,
+          scoreLeft, scoreRight,
+          rounds,
+        });
         // セット終了時の最終クリーンアップ
         void closeRoomInteractiveSessions(roomId, 'set_end');
         roomStates.delete(roomId);
@@ -159,6 +208,8 @@ async function startQuestionPhase(roomId: string, state: RoomState, sec: number)
   state.remainingSec = sec;
   const problemId = state.problems[state.qIndex];
   const statement = state.statements?.[problemId];
+  state.questionSecTotal = sec;
+  state.questionStartAt = Date.now();
   // 新しい問題用の /work を作成（前問のものが残っていれば削除）
   try { if (state.hostWorkDir) { void fs.rm(state.hostWorkDir, { recursive: true, force: true }); } } catch {}
   try { state.hostWorkDir = await fs.mkdtemp(path.join(os.tmpdir(), 'duel-work-')); } catch { state.hostWorkDir = undefined; }
@@ -203,6 +254,12 @@ async function startQuestionPhase(roomId: string, state: RoomState, sec: number)
     broadcast(roomId, 'timer_tick', { roomId, phase: state.phase, remainingSec: state.remainingSec, problemId });
     if (state.remainingSec <= 0) {
       clearRoomTimer(state);
+      // タイムアップ: ラウンド結果を記録（勝者なし）
+      try {
+        const title = (state.statements?.[problemId] || '').split('\n')[0]?.trim();
+        const timeSec = state.questionSecTotal ?? undefined;
+        if (Array.isArray(state.rounds)) state.rounds.push({ index: state.qIndex + 1, problemId, title, okSeat: 'none', command: undefined, timeSec });
+      } catch {}
       broadcast(roomId, 'question_end', { roomId, problemId, index: state.qIndex });
       startIntervalPhase(roomId, state, 2);
     }
@@ -213,6 +270,8 @@ async function startSet(roomId: string, problems: string[], difficulty?: string)
   let state = roomStates.get(roomId);
   if (state) { clearRoomTimer(state); }
   state = { phase: 'idle', problems, qIndex: 0, remainingSec: 0, timer: undefined, difficulty, roomId };
+  state.setStartAt = Date.now();
+  state.rounds = [];
   // 事前に問題文を読み込む
   const statements: Record<string, string> = {};
   const problemPaths: Record<string, string> = {};
@@ -776,6 +835,17 @@ io.on('connection', (socket: Socket) => {
           const seats = roomSeats.get(roomId);
           if (seats?.left === socket.id) seat = 'left';
           else if (seats?.right === socket.id) seat = 'right';
+          // ラウンド結果を記録
+          try {
+            const title = (state.statements?.[problemId] || '').split('\n')[0]?.trim();
+            let elapsed: number | undefined;
+            if (typeof state.questionSecTotal === 'number' && typeof state.remainingSec === 'number') {
+              elapsed = Math.max(0, state.questionSecTotal - state.remainingSec);
+            } else if (typeof state.questionStartAt === 'number') {
+              elapsed = Math.round(((Date.now() - state.questionStartAt) / 1000) * 10) / 10;
+            }
+            if (Array.isArray(state.rounds)) state.rounds.push({ index: state.qIndex + 1, problemId, title, okSeat: seat === 'unknown' ? 'none' : seat, command, timeSec: elapsed });
+          } catch {}
           broadcast(roomId, 'winner', { roomId, problemId, seat, command });
           clearRoomTimer(state);
           // 勝敗確定で直ちにインタラクティブセッションを終了
