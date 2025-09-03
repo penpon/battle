@@ -171,9 +171,11 @@
       text($('#rightStreak'), rightStreak);
 
       // 勝者表示
+      const leftDisplayName = (leftName && leftName.trim() !== '' && leftName.trim() !== '-') ? leftName : 'Left';
+      const rightDisplayName = (rightName && rightName.trim() !== '' && rightName.trim() !== '-') ? rightName : 'Right';
       let winnerStr = '';
-      if (scoreLeft > scoreRight) winnerStr = `\ud83c\udfc6 勝者: ${leftName || 'Left'}`;
-      else if (scoreRight > scoreLeft) winnerStr = `\ud83c\udfc6 勝者: ${rightName || 'Right'}`;
+      if (scoreLeft > scoreRight) winnerStr = `\ud83c\udfc6 勝者: ${leftDisplayName}`;
+      else if (scoreRight > scoreLeft) winnerStr = `\ud83c\udfc6 勝者: ${rightDisplayName}`;
       else winnerStr = '\ud83e\udd1d ドロー';
       text($('#winnerTitle'), winnerStr);
       text($('#winnerSub'), '対戦おつかれさまでした');
