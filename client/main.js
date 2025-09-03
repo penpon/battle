@@ -345,7 +345,12 @@
         try { console.log('[result:set_end] savedToLocalStorage', !!localStorage.getItem('duelResult')); } catch {}
       } catch {}
       setPhase('idle'); hideOverlay(); stopInteractive();
-      try { window.location.href = './result.html'; } catch {}
+      try {
+        const qp = new URLSearchParams();
+        try { qp.set('roomId', ($('roomId')?.value?.trim()) || (p?.roomId) || 'r1'); } catch { qp.set('roomId', 'r1'); }
+        qp.set('ts', String(Date.now()));
+        window.location.href = './result.html?' + qp.toString();
+      } catch {}
     });
     socket.on('set_cancelled', () => { setPhase('idle'); hideOverlay(); stopInteractive(); });
 
