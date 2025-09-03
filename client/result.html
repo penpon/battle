@@ -130,18 +130,18 @@
       const fallbackRoomId = sp.get('roomId') || 'r1';
 
       const roomId = (data && data.roomId) || fallbackRoomId;
-      const totalProblems = (data && (data.totalProblems || (Array.isArray(data.rounds) ? data.rounds.length : null))) || 0;
+      const totalProblems = (data && (data.totalProblems ?? (Array.isArray(data.rounds) ? data.rounds.length : null))) ?? 0;
       const durationSec = (data && typeof data.durationSec === 'number') ? data.durationSec : null;
       const leftName = (data && data.leftName) || '-';
       const rightName = (data && data.rightName) || '-';
-      const scoreLeft = (data && (data.scoreLeft ?? data.leftPoints ?? data.leftCorrect)) || 0;
-      const scoreRight = (data && (data.scoreRight ?? data.rightPoints ?? data.rightCorrect)) || 0;
-      const leftPoints = (data && (data.leftPoints ?? data.leftCorrect)) || scoreLeft || 0;
-      const rightPoints = (data && (data.rightPoints ?? data.rightCorrect)) || scoreRight || 0;
-      const leftCorrect = (data && (data.leftCorrect ?? data.leftPoints)) || 0;
-      const rightCorrect = (data && (data.rightCorrect ?? data.rightPoints)) || 0;
-      const leftStreak = (data && data.leftStreak) || 0;
-      const rightStreak = (data && data.rightStreak) || 0;
+      const scoreLeft = (data && (data.scoreLeft ?? data.leftPoints ?? data.leftCorrect)) ?? 0;
+      const scoreRight = (data && (data.scoreRight ?? data.rightPoints ?? data.rightCorrect)) ?? 0;
+      const leftPoints = (data && (data.leftPoints ?? data.leftCorrect)) ?? (scoreLeft ?? 0);
+      const rightPoints = (data && (data.rightPoints ?? data.rightCorrect)) ?? (scoreRight ?? 0);
+      const leftCorrect = (data && (data.leftCorrect ?? data.leftPoints)) ?? 0;
+      const rightCorrect = (data && (data.rightCorrect ?? data.rightPoints)) ?? 0;
+      const leftStreak = (data && (data.leftStreak ?? 0)) ?? 0;
+      const rightStreak = (data && (data.rightStreak ?? 0)) ?? 0;
 
       text($('#roomIdVal'), roomId);
       text($('#totalProblems'), totalProblems);
