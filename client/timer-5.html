@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Timer Prototype 5 - Conic Arc</title>
+  <style>
+    :root { --bg:#0b1020; --panel:#0f152b; --card:#121a34; --text:#e8ecf7; --muted:#a9b3cf; --ok:#15c57e; --ng:#ff5d5d; --accent:#5b8cff; --angle: 360deg; }
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100dvh;color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans JP',sans-serif;background:linear-gradient(180deg,#0a0f20,#0b1226 40%,#0b132a);display:grid;place-items:center;padding:24px}
+    .card{background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:28px;box-shadow:0 12px 40px rgba(0,0,0,.35);}
+    .label{font-size:12px;color:var(--muted)}
+    .title{font-weight:800;margin:4px 0 14px}
+    .dial{position:relative;width:260px;height:260px;display:grid;place-items:center;margin:auto}
+    .ring{width:100%;height:100%;border-radius:50%;
+      background:
+        radial-gradient(closest-side, rgba(0,0,0,0) 72%, rgba(0,0,0,0.4) 73%, rgba(0,0,0,0) 74%),
+        conic-gradient(var(--accent) var(--angle), rgba(255,255,255,.12) 0deg);
+      box-shadow: inset 0 0 40px rgba(0,0,0,.45), 0 0 40px rgba(91,140,255,.18);
+    }
+    .time{position:absolute;inset:auto 0 0 0; text-align:center; transform: translateY(50%); font-weight:900; font-size:42px; letter-spacing:1px; text-shadow:0 6px 24px rgba(0,0,0,.4)}
+    .hint{margin-top:12px;font-size:11px;color:#8ea0c9;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="label">問題タイマー</div>
+    <div class="title">Conic Arc</div>
+    <div class="dial">
+      <div id="ring" class="ring" aria-hidden="true"></div>
+      <div id="timeText" class="time" role="timer" aria-live="polite">01:30</div>
+    </div>
+    <div class="hint">`?sec=90` で開始秒数を変更（既定 90）</div>
+  </div>
+  <script>
+    (function(){
+      const qs = new URLSearchParams(location.search);
+      const total = Math.max(1, parseInt(qs.get('sec')||'90',10));
+      const ring = document.getElementById('ring');
+      const txt = document.getElementById('timeText');
+      function fmt(t){ t=Math.max(0,Math.floor(t)); const m=String(Math.floor(t/60)).padStart(2,'0'); const s=String(t%60).padStart(2,'0'); return m+':'+s; }
+      const start=performance.now();
+      function step(now){
+        const elapsed=(now-start)/1000; const remain=Math.max(0,total-elapsed); const p=Math.max(0,Math.min(1,remain/total));
+        txt.textContent=fmt(remain);
+        const angle=(p*360).toFixed(2)+'deg';
+        ring.style.setProperty('--angle', angle);
+        if(remain>0) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    })();
+  </script>
+</body>
+</html>
