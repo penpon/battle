@@ -13,6 +13,16 @@
   let myShellActive = false;
   // 席ごとのインタラクティブ稼働状態（verdict の端末反映抑止に使用）
   let leftShellActive = false, rightShellActive = false;
+  // スコア（案C: ヘッダー横のPOINTSピルに表示）
+  let leftPoints = 0, rightPoints = 0;
+  function renderPoints() {
+    try {
+      const lv = document.getElementById('leftPointsVal');
+      if (lv) lv.textContent = String(leftPoints|0);
+      const rv = document.getElementById('rightPointsVal');
+      if (rv) rv.textContent = String(rightPoints|0);
+    } catch {}
+  }
 
   // クエリパラメータ取得（owner/guest 遷移時に利用）
   function getQuery() {
@@ -290,6 +300,8 @@
       setIndex(0, p.total);
       setPhase('question');
       clearLogs(); hideOverlay();
+      // セット開始時にポイントをリセット
+      leftPoints = 0; rightPoints = 0; renderPoints();
     });
     socket.on('set_end', () => { setPhase('idle'); hideOverlay(); stopInteractive(); });
     socket.on('set_cancelled', () => { setPhase('idle'); hideOverlay(); stopInteractive(); });
@@ -425,8 +437,12 @@
 
     // Quick Shell 結果イベントは廃止
 
-    // 勝者表示（全画面撃破アニメーション）
+    // 勝者表示（全画面撃破アニメーション） + ポイント加算
     socket.on('winner', ({ seat }) => {
+      // 1問正解につき+1ポイント
+      if (seat === 'left') leftPoints += 1;
+      else if (seat === 'right') rightPoints += 1;
+      renderPoints();
       playWinAnimation(seat);
     });
 
