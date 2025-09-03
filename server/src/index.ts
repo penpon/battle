@@ -1020,6 +1020,12 @@ async function bootstrap() {
       prefix: '/',
       index: ['index.html'],
     } as any);
+    // 静的配信: sounds/ を /sounds/ 配下で配信（BGM などのアセット）
+    await fastify.register(fastifyStatic as any, {
+      root: path.join(repoRoot, 'sounds'),
+      prefix: '/sounds/',
+      decorateReply: false,
+    } as any);
     fastify.get('/', async (req: FastifyRequest, reply: FastifyReply) => {
       // index.html を返す（@fastify/static が reply.sendFile を提供）
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
