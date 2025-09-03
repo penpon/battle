@@ -636,22 +636,26 @@ io.on('connection', (socket: Socket) => {
           const judgeFs: JudgeFS = {
             readFile: async (p: string) => {
               if (scenarioDir && p.startsWith('/scenario')) {
-                const rel = p.slice('/scenario'.length);
+                let rel = p.slice('/scenario'.length);
+                if (rel.startsWith('/')) rel = rel.slice(1);
                 return fs.readFile(path.join(scenarioDir, rel), 'utf8');
               }
               if (hostWorkDir && p.startsWith('/work')) {
-                const rel = p.slice('/work'.length);
+                let rel = p.slice('/work'.length);
+                if (rel.startsWith('/')) rel = rel.slice(1);
                 return fs.readFile(path.join(hostWorkDir, rel), 'utf8');
               }
               throw new Error('FS readFile not supported for path: ' + p);
             },
             exists: async (p: string) => {
               if (scenarioDir && p.startsWith('/scenario')) {
-                const rel = p.slice('/scenario'.length);
+                let rel = p.slice('/scenario'.length);
+                if (rel.startsWith('/')) rel = rel.slice(1);
                 try { await fs.access(path.join(scenarioDir, rel)); return true; } catch { return false; }
               }
               if (hostWorkDir && p.startsWith('/work')) {
-                const rel = p.slice('/work'.length);
+                let rel = p.slice('/work'.length);
+                if (rel.startsWith('/')) rel = rel.slice(1);
                 try { await fs.access(path.join(hostWorkDir, rel)); return true; } catch { return false; }
               }
               return false;
