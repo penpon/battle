@@ -11,6 +11,8 @@
   let leftLine = '', rightLine = '';
   // 自席のインタラクティブシェル起動状態（ローカルエコー制御用）
   let myShellActive = false;
+  // 席ごとのインタラクティブ稼働状態（verdict の端末反映抑止に使用）
+  let leftShellActive = false, rightShellActive = false;
 
   // クエリパラメータ取得（owner/guest 遷移時に利用）
   function getQuery() {
@@ -369,17 +371,18 @@
       $('leftVerdict').className = `verdict ${badge}`; $('leftVerdict').textContent = v.ok ? 'OK' : 'NG';
       $('rightVerdict').className = `verdict ${badge}`; $('rightVerdict').textContent = v.ok ? 'OK' : 'NG';
       // どちらの席からの実行かに応じて、その端末に stdout+stderr を表示（実シェルに近づける）
+      // ただし、インタラクティブシェル稼働中の席は shell_stream による表示があるため、重複表示を避ける目的で verdict からの書き込みは抑止する。
       try {
         const combined = sanitizePrintable([(v.stdout || ''), (v.stderr || '')].filter(Boolean).join('\n'));
         const text = combined + (combined.endsWith('\n') ? '' : '\r\n');
         if (v.seat === 'left' && leftTerm) {
-          leftTerm.write(text);
+          if (!leftShellActive) leftTerm.write(text);
         } else if (v.seat === 'right' && rightTerm) {
-          rightTerm.write(text);
+          if (!rightShellActive) rightTerm.write(text);
         } else {
           // 座席情報が無い場合は自席へフォールバック
-          if (mySeat === 'left' && leftTerm) leftTerm.write(text);
-          else if (mySeat === 'right' && rightTerm) rightTerm.write(text);
+          if (mySeat === 'left' && leftTerm) { if (!leftShellActive) leftTerm.write(text); }
+          else if (mySeat === 'right' && rightTerm) { if (!rightShellActive) rightTerm.write(text); }
         }
       } catch {}
       if (autoAnswerEnabled) {
@@ -395,6 +398,8 @@
       const rts = document.getElementById('rightTermStatus');
       if (r && r.ok) {
         if (seat === mySeat) myShellActive = true;
+        if (seat === 'left') leftShellActive = true;
+        else if (seat === 'right') rightShellActive = true;
         if (seat === 'left' && lts) lts.textContent = 'started';
         else if (seat === 'right' && rts) rts.textContent = 'started';
         // 初期fit→resize送信（自席のみ）
@@ -404,6 +409,8 @@
         else if (mySeat === 'right') { rightFit.fit(); socket.emit('shell_resize', { roomId, cols: rightTerm.cols, rows: rightTerm.rows }); rightTerm.focus(); }
       } else {
         if (seat === mySeat) myShellActive = false;
+        if (seat === 'left') leftShellActive = false;
+        else if (seat === 'right') rightShellActive = false;
         if (seat === 'left' && lts) lts.textContent = 'failed to start';
         else if (seat === 'right' && rts) rts.textContent = 'failed to start';
       }
@@ -428,6 +435,8 @@
       const lts = document.getElementById('leftTermStatus');
       const rts = document.getElementById('rightTermStatus');
       if (seat === mySeat) myShellActive = false;
+      if (seat === 'left') leftShellActive = false;
+      else if (seat === 'right') rightShellActive = false;
       if (seat === 'left' && lts) lts.textContent = `closed: ${reason}`;
       else if (seat === 'right' && rts) rts.textContent = `closed: ${reason}`;
     });
