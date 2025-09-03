@@ -16,32 +16,8 @@
       "allow": [
         "^\\s*grep\\s+.+\\s+/scenario/app\\.log\\s*$"
       ],
-      "deny": []
+      "deny": [],
+      "denyPreset": "basic_safety"
     }
-  },
-  "allowlistBins": [
-    "bash",
-    "sh",
-    "pwd",
-    "ls",
-    "echo",
-    "cat",
-    "touch",
-    "mkdir",
-    "rmdir",
-    "cp",
-    "mv",
-    "rm",
-    "head",
-    "tail",
-    "wc",
-    "sort",
-    "uniq",
-    "cut",
-    "tr",
-    "grep",
-    "find",
-    "date"
-  ],
-  "allowlistPreset": "basic_wide"
+  }
 }

@@ -11,21 +11,9 @@
   "validators": {
     "effect": {
       "script": "validators/pro-04.js"
+    },
+    "regex": {
+      "denyPreset": "basic_safety"
     }
-  },
-  "allowlistBins": [
-    "bash",
-    "sh",
-    "grep",
-    "cat",
-    "sort",
-    "uniq",
-    "tee",
-    "awk",
-    "sed",
-    "echo",
-    "pwd",
-    "ls"
-  ],
-  "allowlistPreset": "pro_task"
+  }
 }

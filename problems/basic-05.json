@@ -16,19 +16,8 @@
       "allow": [
         "^\\s*cut\\s+-f2\\s+/scenario/data\\.tsv\\s*\\|\\s*sort\\s*-u\\s*$"
       ],
-      "deny": []
+      "deny": [],
+      "denyPreset": "basic_safety"
     }
-  },
-  "allowlistBins": [
-    "bash",
-    "sh",
-    "cut",
-    "sort",
-    "uniq",
-    "cat",
-    "echo",
-    "pwd",
-    "ls"
-  ],
-  "allowlistPreset": "basic_wide"
+  }
 }

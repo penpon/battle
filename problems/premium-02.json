@@ -11,19 +11,9 @@
   "validators": {
     "effect": {
       "script": "validators/premium-02.js"
+    },
+    "regex": {
+      "denyPreset": "basic_safety"
     }
-  },
-  "allowlistBins": [
-    "bash",
-    "sh",
-    "mkdir",
-    "cp",
-    "ls",
-    "find",
-    "echo",
-    "cat",
-    "pwd",
-    "date"
-  ],
-  "allowlistPreset": "premium_task"
+  }
 }

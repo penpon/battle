@@ -17,18 +17,8 @@
         "^\\s*grep\\s+-c\\s+ERROR\\s+/scenario/app\\.log\\s*$",
         "^\\s*grep\\s+ERROR\\s+/scenario/app\\.log\\s*|\\s*wc\\s*-l\\s*$"
       ],
-      "deny": []
+      "deny": [],
+      "denyPreset": "basic_safety"
     }
-  },
-  "allowlistBins": [
-    "bash",
-    "sh",
-    "grep",
-    "wc",
-    "cat",
-    "echo",
-    "pwd",
-    "ls"
-  ],
-  "allowlistPreset": "basic_wide"
+  }
 }

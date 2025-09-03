@@ -12,25 +12,8 @@
     "effect": {
       "script": "validators/premium-01.js"
     },
-    "regex": null
-  },
-  "allowlistBins": [
-    "bash",
-    "sh",
-    "pwd",
-    "ls",
-    "echo",
-    "cat",
-    "touch",
-    "mkdir",
-    "rmdir",
-    "cp",
-    "mv",
-    "rm",
-    "head",
-    "tail",
-    "wc",
-    "date"
-  ],
-  "allowlistPreset": "premium_task"
+    "regex": {
+      "denyPreset": "basic_safety"
+    }
+  }
 }

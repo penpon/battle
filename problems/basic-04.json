@@ -16,18 +16,8 @@
       "allow": [
         "^\\s*tail\\s+(-n\\s+)?2\\s+/scenario/app\\.log\\s*$"
       ],
-      "deny": []
+      "deny": [],
+      "denyPreset": "basic_safety"
     }
-  },
-  "allowlistBins": [
-    "bash",
-    "sh",
-    "tail",
-    "cat",
-    "echo",
-    "pwd",
-    "ls",
-    "wc"
-  ],
-  "allowlistPreset": "basic_wide"
+  }
 }

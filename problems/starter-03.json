@@ -13,16 +13,8 @@
       "allow": [
         "^\\s*date(\\s+.+)?\\s*$"
       ],
-      "deny": []
+      "deny": [],
+      "denyPreset": "basic_safety"
     }
-  },
-  "allowlistBins": [
-    "bash",
-    "sh",
-    "date",
-    "echo",
-    "pwd",
-    "ls"
-  ],
-  "allowlistPreset": "starter_wide"
+  }
 }

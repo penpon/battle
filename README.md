@@ -70,11 +70,7 @@ npm run dev
 - `question_start`, `question_end`, `interval_start`, `interval_end`, `timer_tick`
 - `verdict`（判定結果: stdout/stderr/exitCode/ok など）
 
-### allowlist（実行許可コマンド）について
-- 問題JSONに `allowlistPreset`/`allowlistBins` を指定できます
-- 未指定でも `difficulty` に応じてデフォルトプリセットを自動適用
-  - Starter→`starter_wide`, Basic→`basic_wide`, Premium→`premium_task`, Pro→`pro_task`
-- プリセット定義: `problems/_allowlists.json`
+
 
 ### トラブルシュート
 - Docker 権限エラー: Docker Desktop の起動/再ログインを確認
