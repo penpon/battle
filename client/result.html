@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Linux Quiz Duel - Result (Matrix Neon Cards+Rounds, No OK/NG)</title>
+  <style>
+    :root { --bg:#050a12; --panel:#0c1428; --card:#0a1224; --text:#e8ecf7; --muted:#a9b3cf; --ok:#00e07a; --ng:#ff5d5d; --accent:#59a6ff; --matrix:#0df39b; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans JP', sans-serif; color: var(--text); background: var(--bg); }
+    header { padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(5,10,18,0.70); position: sticky; top:0; backdrop-filter: blur(6px); }
+    h1 { margin: 0; font-size: 18px; letter-spacing: .5px; color: #fff; }
+    main { padding: 16px 20px 40px; max-width: 1100px; margin: 0 auto; position:relative; }
+
+    /* Matrix background */
+    .matrix { position: fixed; inset:0; pointer-events:none; opacity:.18; background-image: repeating-linear-gradient(0deg, rgba(13,243,155,.15) 0 1px, transparent 1px 40px), repeating-linear-gradient(90deg, rgba(13,243,155,.1) 0 1px, transparent 1px 40px); }
+    .scan { position: fixed; inset:0; pointer-events:none; background: linear-gradient(180deg, transparent, rgba(13,243,155,.05), transparent); animation: scan 5s linear infinite; }
+    @keyframes scan { 0% { transform: translateY(-100%);} 100% { transform: translateY(100%);} }
+
+    /* Layout base (Neon Cards) */
+    .hero { display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:16px; }
+    .side { position:relative; border-radius:16px; padding:16px; overflow:hidden; border:1px solid rgba(13,243,155,.28); background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01)); box-shadow: 0 0 0 1px rgba(13,243,155,.12) inset, 0 10px 30px rgba(13,243,155,.08); }
+    .side.left::before { content:''; position:absolute; inset:0; background: radial-gradient(500px 240px at -10% 50%, rgba(13,243,155,.16), transparent 60%); pointer-events:none; }
+    .side.right { border-color: rgba(255,93,93,.28); box-shadow: 0 0 0 1px rgba(255,93,93,.12) inset, 0 10px 30px rgba(255,93,93,.08); }
+    .side.right::before { content:''; position:absolute; inset:0; background: radial-gradient(500px 240px at 110% 50%, rgba(255,93,93,.16), transparent 60%); pointer-events:none; }
+
+    .name { display:flex; align-items:center; justify-content:space-between; gap:10px; font-weight:900; letter-spacing:.5px; }
+    .idset { display:flex; align-items:center; gap:10px; }
+    .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+    .dot.left { background: var(--ok); box-shadow: 0 0 10px rgba(13,243,155,.6); }
+    .dot.right { background: var(--ng); box-shadow: 0 0 10px rgba(255,93,93,.6); }
+    .pill { padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.05); font-size:12px; }
+    .pill.points { font-weight:700; }
+
+    .statgrid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:10px; margin-top:10px; }
+    .stat { text-align:center; background: rgba(10,18,36,.8); border:1px solid rgba(255,255,255,.10); border-radius:12px; padding:12px; backdrop-filter: blur(6px); box-shadow: 0 2px 14px rgba(0,0,0,.2); }
+    .label { color:var(--muted); font-size:12px; }
+    .val { font-weight:900; font-size:18px; margin-top:4px; }
+
+    .score { text-align:center; font-weight:900; letter-spacing:.6px; }
+    .score .num { display:inline-block; font-size:44px; padding:10px 18px; border-radius:12px; border:1px solid rgba(13,243,155,.25); background:rgba(255,255,255,.05); box-shadow: 0 6px 22px rgba(13,243,155,.10); }
+    .score .sep { margin: 0 8px; opacity:.8; }
+    #winnerTitle { margin-top:8px; font-size:18px; color:var(--matrix); }
+    #winnerSub { margin-top:2px; color:#cfe0ff; }
+
+    .rounds { margin-top:18px; display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
+    .round { background: linear-gradient(180deg, rgba(8,16,32,.9), rgba(8,16,32,.7)); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:12px; box-shadow: 0 4px 18px rgba(0,0,0,.3); }
+    .round .head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
+    .q { display:flex; gap:10px; align-items:center; }
+    .qid { font-weight:900; font-size:12px; color:#cfe0ff; }
+    .qtitle { font-size:14px; }
+    .badges { display:flex; gap:8px; align-items:center; }
+    .badge { font-size:12px; border-radius:999px; padding:6px 10px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); }
+    .ok { color:#8ef1c6; border-color: rgba(21,197,126,0.35); }
+    .ng { color:#ffc2c2; border-color: rgba(255,93,93,0.35); }
+    code.answer { display:inline-block; background:#030911; border:1px solid rgba(13,243,155,.18); border-radius:8px; padding:6px 10px; color:#a7ffdc; }
+    .round-body { display:grid; gap:6px; font-size:13px; }
+
+    .actions { margin-top: 20px; display:flex; gap:10px; flex-wrap:wrap; }
+    .btn { display:inline-block; background: var(--accent); color:#fff; border-radius:10px; padding:10px 14px; text-decoration:none; font-weight:700; }
+    .btn.ghost { background: transparent; border: 1px solid rgba(255,255,255,0.14); }
+    .btn.secondary { background:#1f2a4d; }
+
+    @media (max-width: 960px) {
+      .hero { grid-template-columns: 1fr; }
+      .rounds { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="matrix"></div><div class="scan"></div>
+  <header>
+    <h1>Linux Quiz Duel - リザルト（Matrix Neon Cards+Rounds, No OK/NG）</h1>
+  </header>
+  <main>
+    <section class="hero">
+      <div class="side left">
+        <div class="name">
+          <span class="idset"><span class="dot left" aria-hidden="true"></span> <strong id="leftName">Alice</strong></span>
+          <span class="pill points">POINTS <b id="leftPoints">3</b></span>
+        </div>
+        <div class="statgrid">
+          <div class="stat"><div class="label">正解</div><div class="val" id="leftCorrect">3</div></div>
+          <div class="stat"><div class="label">連続</div><div class="val" id="leftStreak">2</div></div>
+        </div>
+      </div>
+      <div class="side right">
+        <div class="name">
+          <span class="idset"><span class="dot right" aria-hidden="true"></span> <strong id="rightName">Bob</strong></span>
+          <span class="pill points">POINTS <b id="rightPoints">2</b></span>
+        </div>
+        <div class="statgrid">
+          <div class="stat"><div class="label">正解</div><div class="val" id="rightCorrect">2</div></div>
+          <div class="stat"><div class="label">連続</div><div class="val" id="rightStreak">1</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="score">
+      <div class="pill" style="margin-bottom:8px;">Room <span id="roomIdVal">r1</span> ・ 全<span id="totalProblems">5</span>問 ・ <span id="setDuration">01:12</span></div>
+      <div><span id="scoreLeft" class="num">3</span><span class="sep">-</span><span id="scoreRight" class="num">2</span></div>
+      <div id="winnerTitle">🏆 勝者: Alice</div>
+      <div id="winnerSub">対戦おつかれさまでした</div>
+    </section>
+
+    <section class="rounds" id="roundsList">
+      <!-- 初期サンプル（ロード後にクリアして動的描画） -->
+      <article class="round">
+        <div class="head">
+          <div class="q"><span class="qid">Q1</span><span class="qtitle">現在のディレクトリを表示せよ</span></div>
+          <div class="badges">
+            <span class="badge ok"><span class="dot left" aria-hidden="true"></span></span>
+            <span class="badge">4.2s</span>
+          </div>
+        </div>
+        <div class="round-body">
+          <div><span class="label">答え</span> <code class="answer">pwd</code></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="actions">
+      <a class="btn" href="./owner.html">オーナーロビーへ</a>
+      <a class="btn ghost" href="./guest.html">ゲストロビーへ</a>
+      <a class="btn secondary" href="./index.html">バトル画面へ</a>
+    </section>
+  </main>
+  <script>
+    (function() {
+      function $(id) { return document.getElementById(id); }
+      function pad2(n) { n = Math.max(0, Math.floor(n)); return (n < 10 ? '0' : '') + n; }
+      function fmtDuration(sec) {
+        if (typeof sec !== 'number' || !isFinite(sec) || sec < 0) return '00:00';
+        const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+        return pad2(m) + ':' + pad2(s);
+      }
+      function text(el, v) { if (el) el.textContent = (v == null || v === '') ? '-' : String(v); }
+
+      let data = null;
+      try { data = JSON.parse(localStorage.getItem('duelResult') || 'null'); } catch {}
+      // フォールバック: クエリから roomId だけ反映
+      const sp = new URLSearchParams(location.search);
+      const fallbackRoomId = sp.get('roomId') || 'r1';
+
+      const roomId = (data && data.roomId) || fallbackRoomId;
+      const totalProblems = (data && (data.totalProblems || (Array.isArray(data.rounds) ? data.rounds.length : null))) || 0;
+      const durationSec = (data && typeof data.durationSec === 'number') ? data.durationSec : null;
+      const leftName = (data && data.leftName) || '-';
+      const rightName = (data && data.rightName) || '-';
+      const scoreLeft = (data && (data.scoreLeft ?? data.leftPoints ?? data.leftCorrect)) || 0;
+      const scoreRight = (data && (data.scoreRight ?? data.rightPoints ?? data.rightCorrect)) || 0;
+      const leftPoints = (data && (data.leftPoints ?? data.leftCorrect)) || scoreLeft || 0;
+      const rightPoints = (data && (data.rightPoints ?? data.rightCorrect)) || scoreRight || 0;
+      const leftCorrect = (data && (data.leftCorrect ?? data.leftPoints)) || 0;
+      const rightCorrect = (data && (data.rightCorrect ?? data.rightPoints)) || 0;
+      const leftStreak = (data && data.leftStreak) || 0;
+      const rightStreak = (data && data.rightStreak) || 0;
+
+      text($('#roomIdVal'), roomId);
+      text($('#totalProblems'), totalProblems);
+      text($('#setDuration'), durationSec != null ? fmtDuration(durationSec) : '00:00');
+      text($('#leftName'), leftName);
+      text($('#rightName'), rightName);
+      text($('#scoreLeft'), scoreLeft);
+      text($('#scoreRight'), scoreRight);
+      text($('#leftPoints'), leftPoints);
+      text($('#rightPoints'), rightPoints);
+      text($('#leftCorrect'), leftCorrect);
+      text($('#rightCorrect'), rightCorrect);
+      text($('#leftStreak'), leftStreak);
+      text($('#rightStreak'), rightStreak);
+
+      // 勝者表示
+      let winnerStr = '';
+      if (scoreLeft > scoreRight) winnerStr = `\ud83c\udfc6 勝者: ${leftName || 'Left'}`;
+      else if (scoreRight > scoreLeft) winnerStr = `\ud83c\udfc6 勝者: ${rightName || 'Right'}`;
+      else winnerStr = '\ud83e\udd1d ドロー';
+      text($('#winnerTitle'), winnerStr);
+      text($('#winnerSub'), '対戦おつかれさまでした');
+
+      // ラウンド描画（明示的なOK/NGテキストは出さず、色ドットとタイムのみ）
+      try {
+        const roundsEl = document.getElementById('roundsList');
+        if (roundsEl && data && Array.isArray(data.rounds) && data.rounds.length) {
+          roundsEl.innerHTML = '';
+          for (const r of data.rounds) {
+            const qn = r.index || 0;
+            const title = r.title || r.problemId || '';
+            const time = (typeof r.timeSec === 'number' && isFinite(r.timeSec)) ? `${Math.round(r.timeSec * 10) / 10}s` : '';
+            const okSeat = r.okSeat === 'left' ? 'left' : (r.okSeat === 'right' ? 'right' : 'none');
+            const cmd = r.command || '';
+
+            const art = document.createElement('article');
+            art.className = 'round';
+            const head = document.createElement('div'); head.className = 'head';
+            const q = document.createElement('div'); q.className = 'q';
+            const qid = document.createElement('span'); qid.className = 'qid'; qid.textContent = `Q${qn}`;
+            const qtitle = document.createElement('span'); qtitle.className = 'qtitle'; qtitle.textContent = title;
+            q.appendChild(qid); q.appendChild(qtitle);
+            const badges = document.createElement('div'); badges.className = 'badges';
+            if (okSeat !== 'none') {
+              const b = document.createElement('span');
+              b.className = 'badge ' + (okSeat === 'left' ? 'ok' : 'ng');
+              const dot = document.createElement('span'); dot.className = 'dot ' + okSeat; dot.setAttribute('aria-hidden', 'true');
+              b.appendChild(dot);
+              badges.appendChild(b);
+            }
+            if (time) {
+              const t = document.createElement('span'); t.className = 'badge'; t.textContent = time; badges.appendChild(t);
+            }
+            head.appendChild(q); head.appendChild(badges);
+
+            const body = document.createElement('div'); body.className = 'round-body';
+            if (cmd) {
+              const row = document.createElement('div');
+              const lab = document.createElement('span'); lab.className = 'label'; lab.textContent = '答え';
+              const code = document.createElement('code'); code.className = 'answer'; code.textContent = cmd;
+              row.appendChild(lab); row.appendChild(code); body.appendChild(row);
+            }
+            art.appendChild(head); art.appendChild(body);
+            roundsEl.appendChild(art);
+          }
+        }
+      } catch {}
+    })();
+  </script>
+</body>
+</html>
