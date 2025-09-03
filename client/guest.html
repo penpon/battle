@@ -7,7 +7,7 @@
   <style>
     :root { --bg:#0b1020; --panel:#0f152b; --card:#121a34; --text:#e8ecf7; --muted:#a9b3cf; --accent:#5b8cff; }
     * { box-sizing: border-box; }
-    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans JP', sans-serif; color: var(--text); background: linear-gradient(180deg, #0a0f20, #0b1226 40%, #0b132a); }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans JP', sans-serif; color: var(--text); background: var(--bg); }
     header { padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(10,16,32,0.6); position: sticky; top:0; backdrop-filter: blur(6px); }
     h1 { margin: 0; font-size: 18px; letter-spacing: .5px; color: #fff; }
     main { padding: 16px 20px; max-width: 900px; margin: 0 auto; }
@@ -17,10 +17,15 @@
     input[type=text] { flex:1; background: #0c1430; color: var(--text); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 10px 12px; outline: none; }
     button { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 14px; cursor: pointer; font-weight: 600; }
     .status { margin-top: 12px; color:#cbd6ff; font-size: 13px; }
+    /* Matrix background */
+    .matrix { position: fixed; inset:0; pointer-events:none; opacity:.18; background-image: repeating-linear-gradient(0deg, rgba(13,243,155,.15) 0 1px, transparent 1px 40px), repeating-linear-gradient(90deg, rgba(13,243,155,.1) 0 1px, transparent 1px 40px); }
+    .scan { position: fixed; inset:0; pointer-events:none; background: linear-gradient(180deg, transparent, rgba(13,243,155,.05), transparent); animation: scan 5s linear infinite; }
+    @keyframes scan { 0% { transform: translateY(-100%);} 100% { transform: translateY(100%);} }
   </style>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
+  <div class="matrix"></div><div class="scan"></div>
   <header>
     <h1>Terminal Takedown - ゲスト準備</h1>
   </header>
