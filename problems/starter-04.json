@@ -13,19 +13,11 @@
       "allow": [
         "^\\s*echo\\s+Linux\\s*$"
       ],
-      "deny": []
+      "deny": [],
+      "denyPreset": "basic_safety"
     },
     "effect": {
       "script": "validators/starter-04.js"
     }
-  },
-  "allowlistBins": [
-    "bash",
-    "sh",
-    "echo",
-    "pwd",
-    "ls",
-    "date"
-  ],
-  "allowlistPreset": "starter_wide"
+  }
 }

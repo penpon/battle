@@ -13,20 +13,11 @@
       "allow": [
         "^\\s*mkdir(\\s+-p)?\\s+testdir\\s*$"
       ],
-      "deny": []
+      "deny": [],
+      "denyPreset": "basic_safety"
     },
     "effect": {
       "script": "validators/starter-05.js"
     }
-  },
-  "allowlistBins": [
-    "bash",
-    "sh",
-    "mkdir",
-    "ls",
-    "echo",
-    "pwd",
-    "date"
-  ],
-  "allowlistPreset": "starter_wide"
+  }
 }
