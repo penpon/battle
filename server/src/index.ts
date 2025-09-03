@@ -610,6 +610,14 @@ io.on('connection', (socket: Socket) => {
     try {
       const { roomId, problemId, command } = payload as { roomId: string; problemId: string; command: string };
 
+      // 実行者の席情報を先に解決しておく（全ての verdict 経路で利用）
+      let execSeat: 'left' | 'right' | 'unknown' = 'unknown';
+      try {
+        const seats = roomSeats.get(roomId);
+        if (seats?.left === socket.id) execSeat = 'left';
+        else if (seats?.right === socket.id) execSeat = 'right';
+      } catch {}
+
       // 1) 問題JSONを解決（キャッシュ優先）
       const state = roomStates.get(roomId);
       let problemPath: string | null = state?.problemPaths?.[problemId] || null;
@@ -634,7 +642,7 @@ io.on('connection', (socket: Socket) => {
         }
       }
       if (!problemPath || !problem) {
-        const out = { problemId, ok: false, reason: 'problem_not_found', stdout: '', stderr: 'problem_not_found', exitCode: 127 };
+        const out = { problemId, ok: false, reason: 'problem_not_found', stdout: '', stderr: 'problem_not_found', exitCode: 127, seat: execSeat, command };
         socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
         return;
       }
@@ -827,14 +835,8 @@ io.on('connection', (socket: Socket) => {
         }
       } catch {}
 
-      // 実行者の席情報を付与してクライアント側で該当端末に表示できるようにする
-      let seatForVerdict: 'left' | 'right' | 'unknown' = 'unknown';
-      try {
-        const seats = roomSeats.get(roomId);
-        if (seats?.left === socket.id) seatForVerdict = 'left';
-        else if (seats?.right === socket.id) seatForVerdict = 'right';
-      } catch {}
-      const out = { problemId, ok, reason, stdout: run.stdout, stderr: run.stderr, exitCode: run.exitCode, seat: seatForVerdict, command } as const;
+      // verdict には実行者の座席情報とコマンドを必ず含める
+      const out = { problemId, ok, reason, stdout: run.stdout, stderr: run.stderr, exitCode: run.exitCode, seat: execSeat, command } as const;
       socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
 
       // 正解なら勝者を通知し、即インターバルへ移行
@@ -866,8 +868,14 @@ io.on('connection', (socket: Socket) => {
       }
     } catch {
       try {
-        const { roomId, problemId } = (payload || {}) as any;
-        const out = { problemId, ok: false, reason: 'internal_error', stdout: '', stderr: 'internal_error', exitCode: 1 };
+        const { roomId, problemId, command } = (payload || {}) as any;
+        let seat: 'left' | 'right' | 'unknown' = 'unknown';
+        try {
+          const seats = roomSeats.get(roomId);
+          if (seats?.left === socket.id) seat = 'left';
+          else if (seats?.right === socket.id) seat = 'right';
+        } catch {}
+        const out = { problemId, ok: false, reason: 'internal_error', stdout: '', stderr: 'internal_error', exitCode: 1, seat, command };
         socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
       } catch {}
     } finally {
