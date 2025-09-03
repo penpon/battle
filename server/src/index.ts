@@ -609,6 +609,10 @@ io.on('connection', (socket: Socket) => {
     let localCreatedWork = false;
     try {
       const { roomId, problemId, command } = payload as { roomId: string; problemId: string; command: string };
+      // ANSIシーケンス除去（CSI/SS3等）: 実行・判定・記録は正規化後のコマンドで統一
+      const cleanedCommand = (command ?? '')
+        .replace(/\x1b\[[0-9;?]*[ -\/]*[@-~]/g, '') // CSI: ESC [ ... final(@-~)
+        .replace(/\x1b[@-_]/g, ''); // 1-byte ESC Fe
 
       // 実行者の席情報を先に解決しておく（全ての verdict 経路で利用）
       let execSeat: 'left' | 'right' | 'unknown' = 'unknown';
@@ -670,7 +674,7 @@ io.on('connection', (socket: Socket) => {
       if (runner) {
         try {
           const exec = await runner.container.exec({
-            Cmd: ['/bin/sh', '-lc', command],
+            Cmd: ['/bin/sh', '-lc', cleanedCommand],
             AttachStdout: true,
             AttachStderr: true,
             Tty: true,
@@ -696,10 +700,10 @@ io.on('connection', (socket: Socket) => {
             }
           });
         } catch {
-          run = await runInSandbox({ image: problem?.prepare?.image || 'ubuntu:22.04', cmd: command, scenarioDir, workHostDir: hostWorkDir });
+          run = await runInSandbox({ image: problem?.prepare?.image || 'ubuntu:22.04', cmd: cleanedCommand, scenarioDir, workHostDir: hostWorkDir });
         }
       } else {
-        run = await runInSandbox({ image: problem?.prepare?.image || 'ubuntu:22.04', cmd: command, scenarioDir, workHostDir: hostWorkDir });
+        run = await runInSandbox({ image: problem?.prepare?.image || 'ubuntu:22.04', cmd: cleanedCommand, scenarioDir, workHostDir: hostWorkDir });
       }
 
       // 6) Effect Validator（/scenario と /work を参照可能）
@@ -827,7 +831,7 @@ io.on('connection', (socket: Socket) => {
             allow = Array.isArray(rx.allow) ? rx.allow.map((s: string) => new RegExp(s)) : undefined;
             deny = denySources.length ? denySources.map((s: string) => new RegExp(s)) : undefined;
           }
-          const rxVerdict = judgeByRegex(command, { allow, deny });
+          const rxVerdict = judgeByRegex(cleanedCommand, { allow, deny });
           if (!rxVerdict.pass) {
             ok = false;
             reason = rxVerdict.reason || 'regex_not_allowed';
@@ -836,7 +840,7 @@ io.on('connection', (socket: Socket) => {
       } catch {}
 
       // verdict には実行者の座席情報とコマンドを必ず含める
-      const out = { problemId, ok, reason, stdout: run.stdout, stderr: run.stderr, exitCode: run.exitCode, seat: execSeat, command } as const;
+      const out = { problemId, ok, reason, stdout: run.stdout, stderr: run.stderr, exitCode: run.exitCode, seat: execSeat, command: cleanedCommand } as const;
       socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
 
       // 正解なら勝者を通知し、即インターバルへ移行
@@ -856,9 +860,9 @@ io.on('connection', (socket: Socket) => {
             } else if (typeof state.questionStartAt === 'number') {
               elapsed = Math.round(((Date.now() - state.questionStartAt) / 1000) * 10) / 10;
             }
-            if (Array.isArray(state.rounds)) state.rounds.push({ index: state.qIndex + 1, problemId, title, okSeat: seat === 'unknown' ? 'none' : seat, command, timeSec: elapsed });
+            if (Array.isArray(state.rounds)) state.rounds.push({ index: state.qIndex + 1, problemId, title, okSeat: seat === 'unknown' ? 'none' : seat, command: cleanedCommand, timeSec: elapsed });
           } catch {}
-          broadcast(roomId, 'winner', { roomId, problemId, seat, command });
+          broadcast(roomId, 'winner', { roomId, problemId, seat, command: cleanedCommand });
           clearRoomTimer(state);
           // 勝敗確定で直ちにインタラクティブセッションを終了
           void closeRoomInteractiveSessions(roomId, 'phase_change');
@@ -869,13 +873,16 @@ io.on('connection', (socket: Socket) => {
     } catch {
       try {
         const { roomId, problemId, command } = (payload || {}) as any;
+        const cleanedCommand = (command ?? '')
+          .replace(/\x1b\[[0-9;?]*[ -\/]*[@-~]/g, '')
+          .replace(/\x1b[@-_]/g, '');
         let seat: 'left' | 'right' | 'unknown' = 'unknown';
         try {
           const seats = roomSeats.get(roomId);
           if (seats?.left === socket.id) seat = 'left';
           else if (seats?.right === socket.id) seat = 'right';
         } catch {}
-        const out = { problemId, ok: false, reason: 'internal_error', stdout: '', stderr: 'internal_error', exitCode: 1, seat, command };
+        const out = { problemId, ok: false, reason: 'internal_error', stdout: '', stderr: 'internal_error', exitCode: 1, seat, command: cleanedCommand };
         socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
       } catch {}
     } finally {
