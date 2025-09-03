@@ -76,53 +76,40 @@
     <section class="hero">
       <div class="side left">
         <div class="name">
-          <span class="idset"><span class="dot left" aria-hidden="true"></span> <strong id="leftName">Alice</strong></span>
-          <span class="pill points">POINTS <b id="leftPoints">3</b></span>
+          <span class="idset"><span class="dot left" aria-hidden="true"></span> <strong id="leftName">-</strong></span>
+          <span class="pill points">POINTS <b id="leftPoints">0</b></span>
         </div>
         <div class="statgrid">
-          <div class="stat"><div class="label">正解</div><div class="val" id="leftCorrect">3</div></div>
-          <div class="stat"><div class="label">連続</div><div class="val" id="leftStreak">2</div></div>
+          <div class="stat"><div class="label">正解</div><div class="val" id="leftCorrect">0</div></div>
+          <div class="stat"><div class="label">連続</div><div class="val" id="leftStreak">0</div></div>
         </div>
       </div>
       <div class="side right">
         <div class="name">
-          <span class="idset"><span class="dot right" aria-hidden="true"></span> <strong id="rightName">Bob</strong></span>
-          <span class="pill points">POINTS <b id="rightPoints">2</b></span>
+          <span class="idset"><span class="dot right" aria-hidden="true"></span> <strong id="rightName">-</strong></span>
+          <span class="pill points">POINTS <b id="rightPoints">0</b></span>
         </div>
         <div class="statgrid">
-          <div class="stat"><div class="label">正解</div><div class="val" id="rightCorrect">2</div></div>
-          <div class="stat"><div class="label">連続</div><div class="val" id="rightStreak">1</div></div>
+          <div class="stat"><div class="label">正解</div><div class="val" id="rightCorrect">0</div></div>
+          <div class="stat"><div class="label">連続</div><div class="val" id="rightStreak">0</div></div>
         </div>
       </div>
     </section>
 
     <section class="score">
-      <div class="pill" style="margin-bottom:8px;">Room <span id="roomIdVal">r1</span> ・ 全<span id="totalProblems">5</span>問 ・ <span id="setDuration">01:12</span></div>
-      <div><span id="scoreLeft" class="num">3</span><span class="sep">-</span><span id="scoreRight" class="num">2</span></div>
-      <div id="winnerTitle">🏆 勝者: Alice</div>
+      <div class="pill" style="margin-bottom:8px;">Room <span id="roomIdVal">r1</span> ・ 全<span id="totalProblems">0</span>問 ・ <span id="setDuration">00:00</span></div>
+      <div><span id="scoreLeft" class="num">0</span><span class="sep">-</span><span id="scoreRight" class="num">0</span></div>
+      <div id="winnerTitle">-</div>
       <div id="winnerSub">対戦おつかれさまでした</div>
     </section>
 
     <section class="rounds" id="roundsList">
-      <!-- 初期サンプル（ロード後にクリアして動的描画） -->
-      <article class="round">
-        <div class="head">
-          <div class="q"><span class="qid">Q1</span><span class="qtitle">現在のディレクトリを表示せよ</span></div>
-          <div class="badges">
-            <span class="badge ok"><span class="dot left" aria-hidden="true"></span></span>
-            <span class="badge">4.2s</span>
-          </div>
-        </div>
-        <div class="round-body">
-          <div><span class="label">答え</span> <code class="answer">pwd</code></div>
-        </div>
-      </article>
+      <!-- 動的に描画 -->
     </section>
 
     <section class="actions">
       <a class="btn" href="./owner.html">オーナーロビーへ</a>
       <a class="btn ghost" href="./guest.html">ゲストロビーへ</a>
-      <a class="btn secondary" href="./index.html">バトル画面へ</a>
     </section>
   </main>
   <script>
@@ -183,9 +170,10 @@
       // ラウンド描画（明示的なOK/NGテキストは出さず、色ドットとタイムのみ）
       try {
         const roundsEl = document.getElementById('roundsList');
-        if (roundsEl && data && Array.isArray(data.rounds) && data.rounds.length) {
+        if (roundsEl) {
           roundsEl.innerHTML = '';
-          for (const r of data.rounds) {
+          if (data && Array.isArray(data.rounds) && data.rounds.length) {
+            for (const r of data.rounds) {
             const qn = r.index || 0;
             const title = r.title || r.problemId || '';
             const time = (typeof r.timeSec === 'number' && isFinite(r.timeSec)) ? `${Math.round(r.timeSec * 10) / 10}s` : '';
@@ -221,6 +209,7 @@
             }
             art.appendChild(head); art.appendChild(body);
             roundsEl.appendChild(art);
+            }
           }
         }
       } catch {}
