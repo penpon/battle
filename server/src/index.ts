@@ -14,6 +14,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..');
 
+// 共通denyプリセットのキャッシュとローダ
+let _denyPresetsCache: Record<string, string[]> | null = null;
+async function loadDenyPresets(): Promise<Record<string, string[]>> {
+  if (_denyPresetsCache) return _denyPresetsCache;
+  try {
+    const p = path.join(repoRoot, 'problems', '_denylists.json');
+    const txt = await fs.readFile(p, 'utf8');
+    const obj = JSON.parse(txt);
+    const presets = (obj && typeof obj === 'object' && obj.presets && typeof obj.presets === 'object') ? obj.presets as Record<string, string[]> : {};
+    _denyPresetsCache = presets;
+    return presets;
+  } catch {
+    _denyPresetsCache = {};
+    return {};
+  }
+}
+
 const fastify = Fastify();
 
 fastify.get('/health', async () => ({ ok: true }));
@@ -651,11 +668,35 @@ io.on('connection', (socket: Socket) => {
       }
 
       // 6.5) Regex Validator（問題定義のvalidators.regexに基づく、コマンド文字列の事前検証）
+      // 方針: 効果検証が存在する場合は allow は無視し、deny のみ適用して柔軟性を確保
       try {
-        const rx = problem?.validators?.regex as { allow?: string[]; deny?: string[] } | undefined;
+        const rx = problem?.validators?.regex as { allow?: string[]; deny?: string[]; denyPreset?: string | string[] } | undefined;
         if (rx && (Array.isArray(rx.allow) || Array.isArray(rx.deny))) {
-          const allow = Array.isArray(rx.allow) ? rx.allow.map((s: string) => new RegExp(s)) : undefined;
-          const deny = Array.isArray(rx.deny) ? rx.deny.map((s: string) => new RegExp(s)) : undefined;
+          let allow: RegExp[] | undefined;
+          let deny: RegExp[] | undefined;
+
+          // プリセット解決: denyPreset を _denylists.json から展開し、rx.deny と結合
+          const denySources: string[] = [];
+          try {
+            const presets = await loadDenyPresets();
+            const ps = rx.denyPreset;
+            const names = Array.isArray(ps) ? ps : (typeof ps === 'string' ? [ps] : []);
+            for (const n of names) {
+              const arr = presets[n];
+              if (Array.isArray(arr)) denySources.push(...arr);
+            }
+          } catch {}
+          if (Array.isArray(rx.deny)) denySources.push(...rx.deny);
+
+          if (effScript) {
+            // 効果検証がある: 危険コマンドの拒否のみ（deny）を適用
+            allow = undefined;
+            deny = denySources.length ? denySources.map((s: string) => new RegExp(s)) : undefined;
+          } else {
+            // 効果検証が無い: 従来通り allow/deny 双方を適用
+            allow = Array.isArray(rx.allow) ? rx.allow.map((s: string) => new RegExp(s)) : undefined;
+            deny = denySources.length ? denySources.map((s: string) => new RegExp(s)) : undefined;
+          }
           const rxVerdict = judgeByRegex(command, { allow, deny });
           if (!rxVerdict.pass) {
             ok = false;
