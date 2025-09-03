@@ -31,6 +31,7 @@ export async function runInSandbox(opts: RunOptions) {
   const container = await docker.createContainer({
     Image: opts.image,
     Cmd: ['/bin/sh', '-c', opts.cmd],
+    WorkingDir: workDir,
     AttachStdin: false,
     AttachStdout: true,
     AttachStderr: true,
