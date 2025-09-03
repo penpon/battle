@@ -36,7 +36,6 @@
   const myRole = (__qp.role === 'owner' || __qp.role === 'guest') ? __qp.role : '';
   let autoStartDone = false;
   let countdownDone = false;
-  const autoAnswerEnabled = (__qp.e2e === '1' || __qp.auto === '1');
 
   // 非表示制御文字を除去（\n,\r,\t, および ESC(0x1B) は残す＝ANSIカラー等は保持）
   function sanitizePrintable(s) {
@@ -292,7 +291,7 @@
       setPhase('question');
       clearLogs(); hideOverlay();
     });
-    socket.on('set_end', () => { setPhase('idle'); hideOverlay(); stopInteractive(); if (autoAnswerEnabled) { const m='[E2E] set_end reached\n'; $('leftLog').textContent += m; $('rightLog').textContent += m; } });
+    socket.on('set_end', () => { setPhase('idle'); hideOverlay(); stopInteractive(); });
     socket.on('set_cancelled', () => { setPhase('idle'); hideOverlay(); stopInteractive(); });
 
     socket.on('question_start', (p) => {
@@ -303,30 +302,13 @@
       setRemain(p.sec);
       clearLogs(); hideOverlay();
       ensureTerms();
-      // 端末にフォーカス（シェル起動失敗時でも入力を受け付けるため）
       try {
-        if (mySeat === 'left' && leftTerm) leftTerm.focus();
-        else if (mySeat === 'right' && rightTerm) rightTerm.focus();
+        // 過去のターミナル内容は残す（競技UIの雰囲気に寄せる）
+        if (mySeat === 'left') { leftFit.fit(); leftTerm.focus(); }
+        else if (mySeat === 'right') { rightFit.fit(); rightTerm.focus(); }
       } catch {}
-      // 質問開始で自動的にインタラクティブシェルを起動
+      // 質問開始でインタラクティブシェルを起動
       startInteractive();
-      // E2E自動解答（Starter 5問用）
-      try {
-        if (autoAnswerEnabled && mySeat === 'right') {
-          const answers = {
-            'starter-01': 'pwd',
-            'starter-02': 'ls',
-            'starter-03': 'date',
-            'starter-04': 'echo Linux',
-            'starter-05': 'mkdir testdir',
-          };
-          const cmd = answers[p.problemId];
-          if (cmd) {
-            const roomId = $('roomId').value.trim() || 'r1';
-            setTimeout(() => { socket.emit('submit_command', { roomId, problemId: p.problemId, command: cmd }); }, 200);
-          }
-        }
-      } catch {}
     });
     socket.on('question_end', () => { setPhase('interval'); stopInteractive(); });
     socket.on('interval_start', (p) => { setPhase('interval'); setRemain(p.sec); stopInteractive(); });
@@ -364,9 +346,12 @@
         stderr: v.stderr ?? '',
       };
       const line = JSON.stringify(rec, null, 2) + '\n';
-      const lLog = $('leftLog'); const rLog = $('rightLog');
-      if (lLog) { lLog.textContent += line; lLog.scrollTop = lLog.scrollHeight; }
-      if (rLog) { rLog.textContent += line; rLog.scrollTop = rLog.scrollHeight; }
+      // 常に自席(mySeat)のログ枠のみに出力（相手枠へは出力しない）
+      let targetLog = null;
+      if (mySeat === 'left') targetLog = $('leftLog');
+      else if (mySeat === 'right') targetLog = $('rightLog');
+      else targetLog = null; // spectator 等は未出力
+      if (targetLog) { targetLog.textContent += line; targetLog.scrollTop = targetLog.scrollHeight; }
       const badge = v.ok ? 'v-ok' : 'v-ng';
       $('leftVerdict').className = `verdict ${badge}`; $('leftVerdict').textContent = v.ok ? 'OK' : 'NG';
       $('rightVerdict').className = `verdict ${badge}`; $('rightVerdict').textContent = v.ok ? 'OK' : 'NG';
@@ -385,10 +370,7 @@
           else if (mySeat === 'right' && rightTerm) { if (!rightShellActive) rightTerm.write(text); }
         }
       } catch {}
-      if (autoAnswerEnabled) {
-        const mark = `[E2E] verdict ${v.problemId || ''}: ${v.ok ? 'OK' : 'NG'}\n`;
-        $('leftLog').textContent += mark; $('rightLog').textContent += mark;
-      }
+      // E2E 用の verdict マーク出力は削除
     });
 
     // --- Interactive shell events (xterm連動) ---
