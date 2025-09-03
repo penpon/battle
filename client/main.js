@@ -15,6 +15,17 @@
   let leftShellActive = false, rightShellActive = false;
   // スコア（案C: ヘッダー横のPOINTSピルに表示）
   let leftPoints = 0, rightPoints = 0;
+  // 固定幅ロック用フラグ
+  let leftWidthLocked = false, rightWidthLocked = false;
+  // 最初に計算した端末表示領域のピクセル幅で固定する
+  function freezeTermWidth(side) {
+    try {
+      const el = document.getElementById(side === 'left' ? 'leftTermOut' : 'rightTermOut');
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (rect && rect.width) el.style.width = Math.ceil(rect.width) + 'px';
+    } catch {}
+  }
   function renderPoints() {
     try {
       const lv = document.getElementById('leftPointsVal');
@@ -364,8 +375,8 @@
       ensureTerms();
       try {
         // 過去のターミナル内容は残す（競技UIの雰囲気に寄せる）
-        if (mySeat === 'left') { leftFit.fit(); leftTerm.focus(); }
-        else if (mySeat === 'right') { rightFit.fit(); rightTerm.focus(); }
+        if (mySeat === 'left') { if (!leftWidthLocked) leftFit.fit(); leftTerm.focus(); }
+        else if (mySeat === 'right') { if (!rightWidthLocked) rightFit.fit(); rightTerm.focus(); }
       } catch {}
       // 質問開始でインタラクティブシェルを起動
       startInteractive();
@@ -444,11 +455,20 @@
         else if (seat === 'right') rightShellActive = true;
         if (seat === 'left' && lts) lts.textContent = 'started';
         else if (seat === 'right' && rts) rts.textContent = 'started';
-        // 初期fit→resize送信（自席のみ）
+        // 初期fit→resize送信（該当席で幅を確定して固定）
         ensureTerms();
         const roomId = $('roomId').value.trim() || 'r1';
-        if (mySeat === 'left') { leftFit.fit(); socket.emit('shell_resize', { roomId, cols: leftTerm.cols, rows: leftTerm.rows }); leftTerm.focus(); }
-        else if (mySeat === 'right') { rightFit.fit(); socket.emit('shell_resize', { roomId, cols: rightTerm.cols, rows: rightTerm.rows }); rightTerm.focus(); }
+        if (seat === 'left') {
+          leftFit.fit();
+          socket.emit('shell_resize', { roomId, cols: leftTerm.cols, rows: leftTerm.rows });
+          leftTerm.focus();
+          freezeTermWidth('left'); leftWidthLocked = true;
+        } else if (seat === 'right') {
+          rightFit.fit();
+          socket.emit('shell_resize', { roomId, cols: rightTerm.cols, rows: rightTerm.rows });
+          rightTerm.focus();
+          freezeTermWidth('right'); rightWidthLocked = true;
+        }
       } else {
         if (seat === mySeat) myShellActive = false;
         if (seat === 'left') leftShellActive = false;
@@ -665,7 +685,7 @@
   window.addEventListener('resize', () => {
     if (!socket) return;
     const roomId = $('roomId').value.trim() || 'r1';
-    if (mySeat === 'left' && leftFit && leftTerm) { leftFit.fit(); socket.emit('shell_resize', { roomId, cols: leftTerm.cols, rows: leftTerm.rows }); }
-    else if (mySeat === 'right' && rightFit && rightTerm) { rightFit.fit(); socket.emit('shell_resize', { roomId, cols: rightTerm.cols, rows: rightTerm.rows }); }
+    if (mySeat === 'left' && leftFit && leftTerm && !leftWidthLocked) { leftFit.fit(); socket.emit('shell_resize', { roomId, cols: leftTerm.cols, rows: leftTerm.rows }); }
+    else if (mySeat === 'right' && rightFit && rightTerm && !rightWidthLocked) { rightFit.fit(); socket.emit('shell_resize', { roomId, cols: rightTerm.cols, rows: rightTerm.rows }); }
   });
 })();
