@@ -14,6 +14,12 @@
     socket.on('connect', () => {
       const rid = ($('roomId')?.value || '').trim() || 'r1';
       const name = ($('userName')?.value || '').trim();
+      if (!name) {
+        setStatus('ユーザー名を入力してください');
+        try { $('userName')?.focus(); } catch {}
+        try { socket.disconnect(); } catch {}
+        return;
+      }
       // send ready with role and name
       socket.emit('ready', { roomId: rid, role: role === 'owner' ? 'owner' : 'guest', name });
       setStatus('接続完了。マッチング中…');
@@ -85,11 +91,16 @@
   // Wire UI
   const btn = $('btnConnect');
   if (btn) btn.addEventListener('click', () => {
+    const name = ($('userName')?.value || '').trim();
+    if (!name) {
+      setStatus('ユーザー名を入力してください');
+      try { $('userName')?.focus(); } catch {}
+      return;
+    }
     setStatus('接続中…');
     ensureSocket();
     if (socket?.connected) {
       const rid = ($('roomId')?.value || '').trim() || 'r1';
-      const name = ($('userName')?.value || '').trim();
       socket.emit('ready', { roomId: rid, role, name });
       setStatus('接続完了。マッチング中…');
     }
