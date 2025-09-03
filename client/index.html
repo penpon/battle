@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Linux Quiz Duel - Battle UI</title>
+  <title>Linux Quiz Duel - Select Role</title>
   <style>
     :root { --bg:#0b1020; --panel:#0f152b; --card:#121a34; --text:#e8ecf7; --muted:#a9b3cf; --ok:#15c57e; --ng:#ff5d5d; --accent:#5b8cff; }
     * { box-sizing: border-box; }
@@ -131,95 +131,25 @@
     @keyframes winPop { 0% { opacity: 0; transform: scale(.9); filter: blur(2px); } 100% { opacity: 1; transform: scale(1); filter: blur(0); } }
     @keyframes winBackdrop { 0% { background: rgba(0,0,0,0.0); } 100% { background: rgba(0,0,0,0.55); } }
   </style>
-  <script src="/socket.io/socket.io.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
-  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
 </head>
 <body>
   <header>
     <h1>Linux Quiz Duel</h1>
   </header>
   <main>
-    <div class="controls card">
-      <div>
-        <div class="row">
-          <label>Room ID</label>
-          <input id="roomId" type="text" value="r1" />
-          <button id="btnConnect">Connect</button>
-        </div>
-        <div class="row">
-          <label>Difficulty</label>
-          <select id="difficulty">
-            <option>Starter</option>
-            <option>Basic</option>
-            <option>Premium</option>
-            <option>Pro</option>
-          </select>
-          <button id="btnRandom" class="secondary">Random 5</button>
-          <button id="btnStart">Start Set</button>
-          <button id="btnCancel" class="ghost">Cancel</button>
-        </div>
-        <div class="row">
-          <label>Problems</label>
-          <select id="problemsSelect" multiple size="7" style="flex:1; background:#0c1430; color: var(--text); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 6px;">
-          </select>
-        </div>
-      </div>
-      <div class="statusbar">
-        <div>Phase: <span id="phase">-</span></div>
-        <div>Q: <span id="qIndex">0</span>/<span id="qTotal">0</span></div>
-        <div>Remain: <span id="remain">0</span>s</div>
-        <div>Seat: <span id="seat">-</span></div>
-      </div>
-    </div>
-
-    <div class="problem">
-      <h2>問題</h2>
-      <div id="statement" class="statement">-</div>
-    </div>
-
-    <div class="battle">
-      <div class="terminal card" id="leftPane">
-        <h3>
-          <div class="pulse green">
-            <span class="name" id="leftName">-</span>
-            <span class="bar"></span>
-            <span id="leftVerdict" class="verdict"></span>
-          </div>
-          <span class="points" id="leftPoints"><span>POINTS</span> <span class="pill" id="leftPointsVal">0</span></span>
-        </h3>
-        <!-- Interactive Terminal (Left) -->
-        <div id="leftTermOut" class="log" style="height:260px; padding:0; overflow:hidden;"></div>
-        <div id="leftTermStatus" class="typing shell"></div>
-        <div id="leftLog" class="log" aria-label="Left verdict log (JSON)"></div>
-        <div class="log-toolbar"><button id="leftLogExpand" class="ghost" aria-controls="leftLog">Expand</button></div>
-      </div>
-      <div class="terminal card" id="rightPane">
-        <h3>
-          <div class="pulse red">
-            <span class="name" id="rightName">-</span>
-            <span class="bar"></span>
-            <span id="rightVerdict" class="verdict"></span>
-          </div>
-          <span class="points" id="rightPoints"><span>POINTS</span> <span class="pill" id="rightPointsVal">0</span></span>
-        </h3>
-        <!-- Interactive Terminal (Right) -->
-        <div id="rightTermOut" class="log" style="height:260px; padding:0; overflow:hidden;"></div>
-        <div id="rightTermStatus" class="typing shell"></div>
-        <div id="rightLog" class="log" aria-label="Right verdict log (JSON)"></div>
-        <div class="log-toolbar"><button id="rightLogExpand" class="ghost" aria-controls="rightLog">Expand</button></div>
+    <div class="card" style="max-width:720px;margin:20px auto;">
+      <h2 style="margin:6px 0 12px;">ロールを選択</h2>
+      <p style="color:var(--muted);margin:0 0 12px;">対戦を開始するには、オーナー（部屋作成）かゲスト（参加）を選んでください。</p>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <a href="./owner.html" style="flex:1; text-align:center; text-decoration:none;">
+          <button style="width:100%; padding:14px 18px; font-size:16px;">オーナーで参加</button>
+        </a>
+        <a href="./guest.html" style="flex:1; text-align:center; text-decoration:none;">
+          <button class="secondary" style="width:100%; padding:14px 18px; font-size:16px;">ゲストで参加</button>
+        </a>
       </div>
     </div>
   </main>
 
-  <div id="overlay" class="overlay">
-    <div class="banner">
-      <h2 id="overlayTitle">Winner!</h2>
-      <p id="overlayDesc">Next question will start shortly...</p>
-    </div>
-  </div>
-
-  <script src="./main.js"></script>
 </body>
 </html>
