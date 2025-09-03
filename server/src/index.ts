@@ -204,7 +204,7 @@ async function startQuestionPhase(roomId: string, state: RoomState, sec: number)
     if (state.remainingSec <= 0) {
       clearRoomTimer(state);
       broadcast(roomId, 'question_end', { roomId, problemId, index: state.qIndex });
-      startIntervalPhase(roomId, state, 5);
+      startIntervalPhase(roomId, state, 2);
     }
   }, 1000);
 }
@@ -732,7 +732,7 @@ io.on('connection', (socket: Socket) => {
           // 勝敗確定で直ちにインタラクティブセッションを終了
           void closeRoomInteractiveSessions(roomId, 'phase_change');
           broadcast(roomId, 'question_end', { roomId, problemId, index: state.qIndex });
-          startIntervalPhase(roomId, state, 5);
+          startIntervalPhase(roomId, state, 2);
         }
       }
     } catch {
