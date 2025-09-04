@@ -887,7 +887,8 @@ io.on('connection', (socket: Socket) => {
       } catch {}
 
       // verdict には実行者の座席情報とコマンドを必ず含める
-      const out = { problemId, ok, reason, stdout: run.stdout, stderr: run.stderr, exitCode: run.exitCode, seat: execSeat, command: cleanedCommand } as const;
+      // 表示・保存用には元の command を保持（ANSI 除去は実行用のみ）
+      const out = { problemId, ok, reason, stdout: run.stdout, stderr: run.stderr, exitCode: run.exitCode, seat: execSeat, command: command } as const;
       socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
 
       // 正解なら勝者を通知し、即インターバルへ移行
@@ -908,11 +909,12 @@ io.on('connection', (socket: Socket) => {
               elapsed = Math.round(((Date.now() - state.questionStartAt) / 1000) * 10) / 10;
             }
             if (Array.isArray(state.rounds)) {
-              try { _debugLogCommand('rounds.push.success.cleanedCommand', cleanedCommand); } catch {}
-              state.rounds.push({ index: state.qIndex + 1, problemId, title, okSeat: seat === 'unknown' ? 'none' : seat, command: cleanedCommand, timeSec: elapsed });
+              try { _debugLogCommand('rounds.push.success.raw', command); } catch {}
+              state.rounds.push({ index: state.qIndex + 1, problemId, title, okSeat: seat === 'unknown' ? 'none' : seat, command: command, timeSec: elapsed });
             }
           } catch {}
-          broadcast(roomId, 'winner', { roomId, problemId, seat, command: cleanedCommand });
+          // winner 通知も元の command を保持
+          broadcast(roomId, 'winner', { roomId, problemId, seat, command: command });
           clearRoomTimer(state);
           // 勝敗確定で直ちにインタラクティブセッションを終了
           void closeRoomInteractiveSessions(roomId, 'phase_change');
@@ -932,7 +934,8 @@ io.on('connection', (socket: Socket) => {
           if (seats?.left === socket.id) seat = 'left';
           else if (seats?.right === socket.id) seat = 'right';
         } catch {}
-        const out = { problemId, ok: false, reason: 'internal_error', stdout: '', stderr: 'internal_error', exitCode: 1, seat, command: cleanedCommand };
+        // エラー時も表示・保存用には元の command を保持
+        const out = { problemId, ok: false, reason: 'internal_error', stdout: '', stderr: 'internal_error', exitCode: 1, seat, command: command };
         socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
       } catch {}
     } finally {
