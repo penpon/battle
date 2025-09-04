@@ -14,6 +14,35 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..');
 
+// --- Debug helpers for command string introspection ---
+function _toUtf8Hex(s: string): string {
+  try {
+    const h = Buffer.from(s, 'utf8').toString('hex');
+    return (h.match(/.{1,2}/g) || []).join(' ');
+  } catch {
+    return '';
+  }
+}
+function _toCodePoints(s: string): string {
+  try {
+    return Array.from(s).map((ch) => {
+      const cp = ch.codePointAt(0);
+      return 'U+' + (cp != null ? cp.toString(16).toUpperCase().padStart(4, '0') : '0000');
+    }).join(' ');
+  } catch {
+    return '';
+  }
+}
+function _debugLogCommand(label: string, cmd: any) {
+  try {
+    if (typeof cmd === 'string') {
+      console.log('[cmddebug]', label, { raw: cmd, len: cmd.length, codePoints: _toCodePoints(cmd), utf8Hex: _toUtf8Hex(cmd) });
+    } else {
+      console.log('[cmddebug]', label, { cmd });
+    }
+  } catch {}
+}
+
 // 共通denyプリセットのキャッシュとローダ
 let _denyPresetsCache: Record<string, string[]> | null = null;
 async function loadDenyPresets(): Promise<Record<string, string[]>> {
@@ -183,6 +212,15 @@ async function startIntervalPhase(roomId: string, state: RoomState, sec: number)
         } catch {}
         const totalProblems = state.problems.length;
         const durationSec = state.setStartAt ? Math.max(0, Math.floor((Date.now() - state.setStartAt) / 1000)) : null;
+        // 送信（直前に rounds の command をデバッグ出力）
+        try {
+          console.log('[cmddebug] set_end.pre', { roundsCount: rounds.length });
+          if (Array.isArray(rounds)) {
+            rounds.forEach((r, i) => {
+              try { _debugLogCommand(`set_end.round[${i}].command`, (r as any)?.command); } catch {}
+            });
+          }
+        } catch {}
         // 送信
         broadcast(roomId, 'set_end', {
           roomId,
@@ -261,6 +299,7 @@ async function startQuestionPhase(roomId: string, state: RoomState, sec: number)
       try {
         const title = (state.statements?.[problemId] || '').split('\n')[0]?.trim();
         const timeSec = state.questionSecTotal ?? undefined;
+        try { _debugLogCommand('rounds.push.timeout.command', undefined); } catch {}
         if (Array.isArray(state.rounds)) state.rounds.push({ index: state.qIndex + 1, problemId, title, okSeat: 'none', command: undefined, timeSec });
       } catch {}
       broadcast(roomId, 'question_end', { roomId, problemId, index: state.qIndex });
@@ -615,10 +654,12 @@ io.on('connection', (socket: Socket) => {
     let localCreatedWork = false;
     try {
       const { roomId, problemId, command } = payload as { roomId: string; problemId: string; command: string };
+      try { _debugLogCommand('submit_command.recv.raw', command); } catch {}
       // ANSIシーケンス除去（CSI/SS3等）: 実行・判定・記録は正規化後のコマンドで統一
       const cleanedCommand = (command ?? '')
         .replace(/\x1b\[[0-9;?]*[ -\/]*[@-~]/g, '') // CSI: ESC [ ... final(@-~)
         .replace(/\x1b[@-_]/g, ''); // 1-byte ESC Fe
+      try { _debugLogCommand('submit_command.cleaned', cleanedCommand); } catch {}
 
       // 実行者の席情報を先に解決しておく（全ての verdict 経路で利用）
       let execSeat: 'left' | 'right' | 'unknown' = 'unknown';
@@ -866,7 +907,10 @@ io.on('connection', (socket: Socket) => {
             } else if (typeof state.questionStartAt === 'number') {
               elapsed = Math.round(((Date.now() - state.questionStartAt) / 1000) * 10) / 10;
             }
-            if (Array.isArray(state.rounds)) state.rounds.push({ index: state.qIndex + 1, problemId, title, okSeat: seat === 'unknown' ? 'none' : seat, command: cleanedCommand, timeSec: elapsed });
+            if (Array.isArray(state.rounds)) {
+              try { _debugLogCommand('rounds.push.success.cleanedCommand', cleanedCommand); } catch {}
+              state.rounds.push({ index: state.qIndex + 1, problemId, title, okSeat: seat === 'unknown' ? 'none' : seat, command: cleanedCommand, timeSec: elapsed });
+            }
           } catch {}
           broadcast(roomId, 'winner', { roomId, problemId, seat, command: cleanedCommand });
           clearRoomTimer(state);
