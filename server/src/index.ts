@@ -693,7 +693,7 @@ io.on('connection', (socket: Socket) => {
         }
       }
       if (!problemPath || !problem) {
-        const out = { problemId, ok: false, reason: 'problem_not_found', stdout: '', stderr: 'problem_not_found', exitCode: 127, seat: execSeat, command };
+        const out = { problemId, ok: false, reason: 'problem_not_found', stdout: '', stderr: 'problem_not_found', exitCode: 127, seat: execSeat, command: cleanedCommand };
         socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
         return;
       }
@@ -887,8 +887,8 @@ io.on('connection', (socket: Socket) => {
       } catch {}
 
       // verdict には実行者の座席情報とコマンドを必ず含める
-      // 表示・保存用には元の command を保持（ANSI 除去は実行用のみ）
-      const out = { problemId, ok, reason, stdout: run.stdout, stderr: run.stderr, exitCode: run.exitCode, seat: execSeat, command: command } as const;
+      // 表示・保存用も正規化済み（ANSI 除去済み）の cleanedCommand を使用する
+      const out = { problemId, ok, reason, stdout: run.stdout, stderr: run.stderr, exitCode: run.exitCode, seat: execSeat, command: cleanedCommand } as const;
       socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
 
       // 正解なら勝者を通知し、即インターバルへ移行
@@ -909,12 +909,12 @@ io.on('connection', (socket: Socket) => {
               elapsed = Math.round(((Date.now() - state.questionStartAt) / 1000) * 10) / 10;
             }
             if (Array.isArray(state.rounds)) {
-              try { _debugLogCommand('rounds.push.success.raw', command); } catch {}
-              state.rounds.push({ index: state.qIndex + 1, problemId, title, okSeat: seat === 'unknown' ? 'none' : seat, command: command, timeSec: elapsed });
+              try { _debugLogCommand('rounds.push.success.cleaned', cleanedCommand); } catch {}
+              state.rounds.push({ index: state.qIndex + 1, problemId, title, okSeat: seat === 'unknown' ? 'none' : seat, command: cleanedCommand, timeSec: elapsed });
             }
           } catch {}
-          // winner 通知も元の command を保持
-          broadcast(roomId, 'winner', { roomId, problemId, seat, command: command });
+          // winner 通知も正規化済みの cleanedCommand を保持
+          broadcast(roomId, 'winner', { roomId, problemId, seat, command: cleanedCommand });
           clearRoomTimer(state);
           // 勝敗確定で直ちにインタラクティブセッションを終了
           void closeRoomInteractiveSessions(roomId, 'phase_change');
@@ -934,8 +934,8 @@ io.on('connection', (socket: Socket) => {
           if (seats?.left === socket.id) seat = 'left';
           else if (seats?.right === socket.id) seat = 'right';
         } catch {}
-        // エラー時も表示・保存用には元の command を保持
-        const out = { problemId, ok: false, reason: 'internal_error', stdout: '', stderr: 'internal_error', exitCode: 1, seat, command: command };
+        // エラー時も表示・保存用には正規化済みの cleanedCommand を使用
+        const out = { problemId, ok: false, reason: 'internal_error', stdout: '', stderr: 'internal_error', exitCode: 1, seat, command: cleanedCommand };
         socket.emit('verdict', out); socket.to(roomId).emit('verdict', out);
       } catch {}
     } finally {
