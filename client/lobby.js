@@ -51,9 +51,9 @@
         params.set('difficulty', diff);
         const sel = $('problemsSelect');
         const selected = sel ? Array.from(sel.selectedOptions).map(o => o.value) : [];
-        const problems = (selected && selected.length > 0) ? selected
-          : (sel ? Array.from(sel.options).slice(0,5).map(o => o.value) : []);
-        if (problems.length > 0) params.set('problems', problems.join(','));
+        if (selected && selected.length > 0) {
+          params.set('problems', selected.join(','));
+        }
       }
       setStatus('マッチング完了。バトル画面に遷移します…');
       // 重要: ページ遷移前にソケットを明示切断して席を解放（レース防止）
@@ -84,8 +84,7 @@
       opt.value = id; opt.textContent = id;
       sel.appendChild(opt);
     }
-    // default select first 5
-    for (let i = 0; i < Math.min(5, sel.options.length); i++) sel.options[i].selected = true;
+    // デフォルトでは未選択（必要に応じて「Random 5」ボタンで選択）
   }
 
   // Wire UI
@@ -96,6 +95,20 @@
       setStatus('ユーザー名を入力してください');
       try { $('userName')?.focus(); } catch {}
       return;
+    }
+    // オーナーは問題の選択が必須（1〜5件）
+    if (role === 'owner') {
+      const sel = $('problemsSelect');
+      const selected = sel ? Array.from(sel.selectedOptions).map(o => o.value) : [];
+      if (!selected || selected.length === 0) {
+        setStatus('問題を1〜5問選択してください（Random 5 も利用できます）');
+        try { $('pbList')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
+        return;
+      }
+      if (selected.length > 5) {
+        setStatus('選択できる問題は最大5問までです');
+        return;
+      }
     }
     setStatus('接続中…');
     ensureSocket();
