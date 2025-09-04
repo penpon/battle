@@ -4,41 +4,48 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Terminal Takedown - Select Role</title>
+  <title>Terminal Takedown - ロール選択 (Terminal)</title>
   <style>
-    :root { --bg:#050a12; --panel:#0c1428; --card:#0a1224; --text:#e8ecf7; --muted:#a9b3cf; --ok:#00e07a; --ng:#ff5d5d; --accent:#59a6ff; --matrix:#0df39b; }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans JP', sans-serif; color: var(--text); background: var(--bg); }
-    header { padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(5,10,18,0.70); position: sticky; top:0; backdrop-filter: blur(6px); }
-    h1 { margin: 0; font-size: 18px; letter-spacing: .5px; color: #fff; }
-    main { padding: 16px 20px; max-width: 1200px; margin: 0 auto; }
-    .card { background: var(--card); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px; }
-    button { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 14px; cursor: pointer; font-weight: 600; }
-    button.secondary { background: #1f2a4d; }
+    :root{ --bg:#050b12; --panel:#07121f; --text:#e6ffea; --muted:#8fb6a1; --accent:#00ff88; }
+    *{box-sizing:border-box}
+    body{margin:0; background:var(--bg); color:var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Noto Sans Mono', monospace}
+    .scan{position:fixed; inset:0; pointer-events:none; background:linear-gradient(180deg, transparent, rgba(0,255,136,.07), transparent); animation:scan 6s linear infinite}
+    @keyframes scan{0%{transform:translateY(-100%)}100%{transform:translateY(100%)}}
+    .crt{position:fixed; inset:0; pointer-events:none; background: repeating-linear-gradient(0deg, rgba(0,255,136,.08), rgba(0,255,136,.08) 1px, transparent 1px, transparent 3px)}
+    header{padding:16px 18px; border-bottom:1px solid rgba(0,255,136,.18)}
+    h1{margin:0; font-size:16px}
 
-    /* Matrix background */
-    .matrix { position: fixed; inset:0; pointer-events:none; opacity:.18; background-image: repeating-linear-gradient(0deg, rgba(13,243,155,.15) 0 1px, transparent 1px 40px), repeating-linear-gradient(90deg, rgba(13,243,155,.1) 0 1px, transparent 1px 40px); }
-    .scan { position: fixed; inset:0; pointer-events:none; background: linear-gradient(180deg, transparent, rgba(13,243,155,.05), transparent); animation: scan 5s linear infinite; }
-    @keyframes scan { 0% { transform: translateY(-100%);} 100% { transform: translateY(100%);} }
+    .term{max-width:900px; margin:28px auto; background:var(--panel); border:1px solid rgba(0,255,136,.2); border-radius:10px; overflow:hidden}
+    .bar{display:flex; gap:8px; align-items:center; padding:8px 10px; background:#06131b; border-bottom:1px solid rgba(0,255,136,.18)}
+    .dot{width:10px; height:10px; border-radius:50%}
+    .dot.r{background:#ff5d5d}.dot.y{background:#ffc24a}.dot.g{background:#25d366}
+    .screen{padding:18px 16px 24px}
+
+    .line{opacity:.9}
+    .caret{display:inline-block; width:10px; background:var(--accent); animation:blink 1.1s steps(1) infinite; margin-left:4px}
+    @keyframes blink{50%{opacity:0}}
+
+    .btns{display:flex; gap:12px; margin-top:16px; flex-wrap:wrap}
+    a.cmd{flex:1; text-decoration:none; color:#00140b; background:linear-gradient(180deg, var(--accent), #00cc66); font-weight:700; border-radius:8px; padding:12px 14px; text-align:center; letter-spacing:.3px; box-shadow:0 10px 20px rgba(0,255,136,.15);}
+    a.cmd:hover{filter:brightness(1.05)}
+    a.cmd.secondary{background:linear-gradient(180deg, #86ffe0, #2af7aa)}
+
+    footer{opacity:.65; font-size:12px; text-align:center; margin-top:10px}
   </style>
 </head>
 <body>
-  <div class="matrix"></div><div class="scan"></div>
-  <header>
-    <h1>Terminal Takedown</h1>
-  </header>
-  <main>
-    <div class="card" style="max-width:720px;margin:20px auto;">
-      <h2 style="margin:6px 0 12px;">ロールを選択</h2>
-      <p style="color:var(--muted);margin:0 0 12px;">対戦を開始するには、オーナー（部屋作成）かゲスト（参加）を選んでください。</p>
-      <div style="display:flex; gap:12px; flex-wrap:wrap;">
-        <a href="./owner.html" style="flex:1; text-align:center; text-decoration:none;">
-          <button style="width:100%; padding:14px 18px; font-size:16px;">オーナーで参加</button>
-        </a>
-        <a href="./guest.html" style="flex:1; text-align:center; text-decoration:none;">
-          <button class="secondary" style="width:100%; padding:14px 18px; font-size:16px;">ゲストで参加</button>
-        </a>
+  <div class="crt"></div><div class="scan"></div>
+  <header><h1>Terminal Takedown</h1></header>
+  <main class="term" role="group" aria-labelledby="ttl">
+    <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+    <div class="screen">
+      <h2 id="ttl" style="margin:0 0 12px">$ select-role</h2>
+      <div class="line">> 対戦を開始するにはロールを選択してください<span class="caret" aria-hidden="true">&nbsp;</span></div>
+      <div class="btns">
+        <a class="cmd" href="./owner.html" aria-label="コマンド: start --role=owner">$ start --role=owner</a>
+        <a class="cmd secondary" href="./guest.html" aria-label="コマンド: start --role=guest">$ start --role=guest</a>
       </div>
+      <footer>Terminal / コマンド入力風</footer>
     </div>
   </main>
   <script src="./audio.js"></script>
