@@ -65,6 +65,26 @@
     try { return String(s ?? '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1A\x1C-\x1F\x7F]/g, ''); } catch { return String(s ?? ''); }
   }
 
+  // --- Debug helpers for command string introspection ---
+  function toUtf8Hex(s) {
+    try {
+      const h = new TextEncoder().encode(String(s ?? '')).reduce((acc, b) => acc + (b.toString(16).padStart(2, '0')), '');
+      return (h.match(/.{1,2}/g) || []).join(' ');
+    } catch { return ''; }
+  }
+  function toCodePoints(s) {
+    try { return Array.from(String(s ?? '')).map(ch => 'U+' + ch.codePointAt(0).toString(16).toUpperCase().padStart(4,'0')).join(' '); } catch { return ''; }
+  }
+  function debugLogCmd(label, cmd) {
+    try {
+      if (typeof cmd === 'string') {
+        console.log('[cmddebug:client]', label, { raw: cmd, len: cmd.length, codePoints: toCodePoints(cmd), utf8Hex: toUtf8Hex(cmd) });
+      } else {
+        console.log('[cmddebug:client]', label, { cmd });
+      }
+    } catch {}
+  }
+
   function ensureTerms() {
     if (!leftTerm) {
       leftTerm = new window.Terminal({ convertEol: true, cursorBlink: true, scrollback: 1000, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' });
@@ -377,6 +397,12 @@
     socket.on('set_end', (p) => {
       // サーバ集計結果を保存し、リザルトへ遷移
       try {
+        // pre-save rounds logging
+        try {
+          const rs = Array.isArray(p?.rounds) ? p.rounds : [];
+          console.log('[cmddebug:client] set_end.preSave.roundsCount', rs.length);
+          rs.forEach((r, i) => { try { debugLogCmd(`set_end.preSave.round[${i}].command`, r?.command); } catch {} });
+        } catch {}
         const roomId = ($('roomId') && $('roomId').value && $('roomId').value.trim()) || (p && p.roomId) || 'r1';
         // UI上の表示名・ローカル集計ポイントをフォールバックとして取り込む（サーバ側の欠損やレース対策）
         const lnEl = document.getElementById('leftName');
@@ -402,6 +428,12 @@
           leftCorrect: (p && (p.leftCorrect ?? p.leftPoints ?? null)) ?? (leftPoints|0),
           rightCorrect: (p && (p.rightCorrect ?? p.rightPoints ?? null)) ?? (rightPoints|0),
         });
+        // post-merge rounds logging (before save)
+        try {
+          const rs2 = Array.isArray(payload?.rounds) ? payload.rounds : [];
+          console.log('[cmddebug:client] set_end.preStorage.roundsCount', rs2.length);
+          rs2.forEach((r, i) => { try { debugLogCmd(`set_end.preStorage.round[${i}].command`, r?.command); } catch {} });
+        } catch {}
         localStorage.setItem('duelResult', JSON.stringify(payload));
         try { console.log('[result:set_end] payload', payload); } catch {}
         try { console.log('[result:set_end] savedToLocalStorage', !!localStorage.getItem('duelResult')); } catch {}
