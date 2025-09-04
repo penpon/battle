@@ -130,6 +130,35 @@
         try { console.error('[result:error] unhandledrejection', e?.reason || e); } catch {}
       });
     } catch {}
+    // Debug helpers & display sanitizer
+    function toUtf8Hex(s) {
+      try {
+        const h = new TextEncoder().encode(String(s ?? '')).reduce((acc, b) => acc + (b.toString(16).padStart(2, '0')), '');
+        return (h.match(/.{1,2}/g) || []).join(' ');
+      } catch { return ''; }
+    }
+    function toCodePoints(s) {
+      try { return Array.from(String(s ?? '')).map(ch => 'U+' + ch.codePointAt(0).toString(16).toUpperCase().padStart(4,'0')).join(' '); } catch { return ''; }
+    }
+    function debugLogCmdResult(label, cmd) {
+      try {
+        if (typeof cmd === 'string') {
+          console.log('[cmddebug:result]', label, { raw: cmd, len: cmd.length, codePoints: toCodePoints(cmd), utf8Hex: toUtf8Hex(cmd) });
+        } else {
+          console.log('[cmddebug:result]', label, { cmd });
+        }
+      } catch {}
+    }
+    // 表示専用サニタイズ（ゼロ幅/Cf・制御文字の除去。引用符は維持）
+    function sanitizeDisplay(s) {
+      try {
+        const str = String(s ?? '');
+        // Remove zero-width (common Cf) and BOM
+        const noZ = str.replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
+        // Remove C0 controls except CR/LF/TAB are not expected in commands; strip broadly for safety
+        return noZ.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+      } catch { return String(s ?? ''); }
+    }
     function renderResult() {
       const $ = (id) => document.getElementById((typeof id === 'string' && id.startsWith('#')) ? id.slice(1) : id);
       const pad2 = (n) => { n = Math.max(0, Math.floor(n)); return (n < 10 ? '0' : '') + n; };
@@ -204,6 +233,9 @@
             const time = (typeof r.timeSec === 'number' && isFinite(r.timeSec)) ? `${Math.round(r.timeSec * 10) / 10}s` : '';
             const okSeat = r.okSeat === 'left' ? 'left' : (r.okSeat === 'right' ? 'right' : 'none');
             const cmd = r.command || '';
+            try { debugLogCmdResult(`round[${qn}].command.raw`, cmd); } catch {}
+            const safeCmd = sanitizeDisplay(cmd);
+            try { debugLogCmdResult(`round[${qn}].command.sanitized`, safeCmd); } catch {}
 
             const art = document.createElement('article');
             art.className = 'round';
@@ -229,7 +261,7 @@
             if (cmd) {
               const row = document.createElement('div');
               const lab = document.createElement('span'); lab.className = 'label'; lab.textContent = '答え';
-              const code = document.createElement('code'); code.className = 'answer' + (okSeat === 'right' ? ' right' : ' left'); code.textContent = cmd;
+              const code = document.createElement('code'); code.className = 'answer' + (okSeat === 'right' ? ' right' : ' left'); code.textContent = safeCmd;
               row.appendChild(lab); row.appendChild(code); body.appendChild(row);
             }
             art.appendChild(head); art.appendChild(body);
